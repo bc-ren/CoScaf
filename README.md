@@ -153,12 +153,12 @@ retrospectively by test H. They are not validation-selected seed averages or
 new measurements from packaging this repository. The recipes support
 reproduction; select new settings using development data.
 
-| Dataset | Seed | K | S (%) | U (%) | H (%) | CZSL (%) | AUSUC (%) |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| AWA2 | 3408 | 3 | 93.11 | 89.87 | 91.46 | 93.31 | 89.42 |
-| CUB | 3409 | 2 | 79.12 | 92.72 | 85.38 | 94.74 | 83.50 |
-| SUN | 3407 | 8 | 57.79 | 75.21 | 65.36 | 86.18 | 52.44 |
-| RetiRareV2 | 3407 | 8 | 30.04 | 26.17 | 27.97 | 29.72 | 12.89 |
+| Dataset| S (%) | U (%) | H (%) | CZSL (%) | AUSUC (%) |
+|---|---:|---:|---:|---:|---:|
+| AWA2 | 93.11 | 89.87 | 91.46 | 93.31 | 89.42 |
+| CUB |79.12 | 92.72 | 85.38 | 94.74 | 83.50 |
+| SUN | 57.79 | 75.21 | 65.36 | 86.18 | 52.44 |
+| RetiRareV2 | 30.04 | 26.17 | 27.97 | 29.72 | 12.89 |
 
 Full-precision values are in [reference_results.json](docs/reference_results.json).
 Core computations were compared against the archived implementation.
