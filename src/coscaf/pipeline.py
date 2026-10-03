@@ -1,10 +1,6 @@
-"""Development, fresh source training, and frozen-protocol evaluation.
+"""Validation calibration, seen-class training, and test-time evaluation."""
 
-Development uses only original seen-training rows. Each source model is fitted
-from scratch. Test-time adaptation takes unlabeled evidence and updates a copy
-of that model's semantic generator; it does not update the visual encoder.
-"""
-
+import hashlib
 from pathlib import Path
 
 import numpy as np
@@ -218,19 +214,13 @@ def develop(config, data_dir, cache_dir, output, suffix_factory, device="cpu"):
         pack = {"classes": bundle.seen, "seen": fold["pseudo_seen"]}
         for role in ("cal", "tune"):
             z = score(model, read, fold[role], bundle.seen, batch, device)
-            pack.update(
-                {
-                    role + "_base": z,
-                    role + "_delta": np.zeros_like(z),
-                    role + "_y": bundle.labels[fold[role]],
-                }
-            )
+            pack[role + "_base"] = z
+            pack[role + "_delta"] = np.zeros_like(z)
+            pack[role + "_y"] = bundle.labels[fold[role]]
         np.savez_compressed(destination / "source_scores.npz", **pack)
         packs.append(pack)
-        source_hashes[f"fold_{fold_id}/model.pt"] = sha256(destination / "model.pt")
-        source_hashes[f"fold_{fold_id}/source_scores.npz"] = sha256(
-            destination / "source_scores.npz"
-        )
+        for name in ("model.pt", "source_scores.npz"):
+            source_hashes[f"fold_{fold_id}/{name}"] = sha256(destination / name)
         del model
     source_calibration, source_curve = joint_calibration(packs, 0.0)
     np.save(output / "source_calibration_curve.npy", source_curve)
@@ -262,13 +252,9 @@ def develop(config, data_dir, cache_dir, output, suffix_factory, device="cpu"):
                 device,
             )
             z = result["scores"].astype(np.float64)
-            pack.update(
-                {
-                    role + "_base": z,
-                    role + "_delta": np.zeros_like(z),
-                    role + "_y": bundle.labels[fold[role]],
-                }
-            )
+            pack[role + "_base"] = z
+            pack[role + "_delta"] = np.zeros_like(z)
+            pack[role + "_y"] = bundle.labels[fold[role]]
             write_json(
                 destination / (role + "_adaptation.json"),
                 {"history": result["history"], "diagnostics": result["diagnostics"]},
@@ -401,7 +387,7 @@ def evaluate_run(run, data_dir, cache_dir, output, suffix_factory, device="cpu")
             "seed": config["seed"],
             "source_model_sha256": sha256(run / "model.pt"),
             "freeze_sha256": sha256(run / "freeze.json"),
-            "test_indices_sha256": __import__("hashlib").sha256(bundle.test.tobytes()).hexdigest(),
+            "test_indices_sha256": hashlib.sha256(bundle.test.tobytes()).hexdigest(),
             "transductive": True,
             "target_labels_used_for_adaptation": False,
             "environment": environment(),

@@ -2,13 +2,14 @@ import numpy as np
 import pytest
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 from coscaf.backbones import VisualPromptSuffix
 from coscaf.model import GENERATOR, CoScafReadout, regional_moments
 from coscaf.training import build_from_state, make_model, schedule, train_fit
 
 
-def readout(variant="original", modes=3):
+def readout(variant="original", modes=3, native=False):
     torch.manual_seed(21)
     initializer = {
         "weight": torch.randn(7, 32),
@@ -17,13 +18,19 @@ def readout(variant="original", modes=3):
         "residual_bias": torch.randn(modes, 32),
     }
     return CoScafReadout(
-        torch.randn(6, 7), initializer, torch.zeros(32), torch.empty(0, 0), variant=variant
+        torch.randn(6, 7),
+        initializer,
+        torch.zeros(32),
+        torch.empty(0, 0),
+        variant=variant,
+        native=native,
     )
 
 
 @pytest.mark.parametrize("variant", ["original", "latent"])
-def test_cached_evidence_replays_direct_scores(variant):
-    head = readout(variant)
+@pytest.mark.parametrize("modes", [1, 2, 3, 8])
+def test_cached_evidence_replays_direct_scores(variant, modes):
+    head = readout(variant, modes)
     patch = torch.randn(2, 16, 32)
     classes = torch.tensor([0, 2, 5])
     direct = head(patch, classes)
@@ -36,6 +43,43 @@ def test_cached_evidence_replays_direct_scores(variant):
         torch.testing.assert_close(value.sum(-1), torch.ones_like(value[..., 0]))
     cached.sum().backward()
     assert all(getattr(head, key).grad is not None for key in GENERATOR)
+
+
+@pytest.mark.parametrize("variant", ["original", "latent"])
+def test_usage_distinguishes_routing_from_posterior_responsibility(variant):
+    head = readout(variant)
+    patch, classes = torch.randn(2, 16, 32), torch.tensor([0, 2, 5])
+    score, usage = head(patch, classes, return_usage=True)
+    evidence = head.features(patch, classes)
+    cached, diagnostic = head.score_features(evidence, classes, diagnostics=True)
+    torch.testing.assert_close(score, cached, rtol=0, atol=0)
+    posterior = diagnostic["local_responsibility"]
+    if variant == "latent":
+        torch.testing.assert_close(usage, posterior, rtol=0, atol=0)
+    else:
+        similarity = (evidence["local"] * head.prototypes(classes)[None]).sum(-1)
+        torch.testing.assert_close(usage, (similarity / 0.5).softmax(-1), rtol=0, atol=0)
+        assert not torch.allclose(usage, posterior)
+
+
+@pytest.mark.parametrize("variant", ["original", "latent"])
+def test_native_embedding_behavior_is_specific_to_original_forward(variant):
+    head = readout(variant, native=True)
+    patch, classes = torch.randn(2, 16, 32), torch.tensor([0, 2, 5])
+    native = torch.randn(2, 7)
+    cached = head.score_features(head.features(patch, classes), classes)
+    direct = head(patch, classes, native)
+    if variant == "latent":
+        torch.testing.assert_close(direct, cached, rtol=0, atol=0)
+        torch.testing.assert_close(head(patch, classes), cached, rtol=0, atol=0)
+    else:
+        changed = head(patch, classes, -native)
+        expected_delta = 2 * (
+            F.normalize(native, dim=-1) @ F.normalize(head.semantics[classes], dim=-1).T
+        )
+        torch.testing.assert_close(direct - changed, expected_delta)
+        with pytest.raises(AssertionError):
+            head(patch, classes)
 
 
 def test_all_prototypes_normalized_and_single_mode_residual_cancels():

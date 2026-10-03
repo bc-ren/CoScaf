@@ -175,21 +175,18 @@ def make_parser():
     cache.add_argument("--image-root", type=Path, required=True)
     cache.add_argument("--batch-size", type=int, default=8)
     cache.add_argument("--run", type=Path, help="Required for test extraction")
-    for command in (cache, sub.add_parser("develop"), sub.add_parser("train")):
-        command.add_argument("--config", type=Path, required=True)
+    development = sub.add_parser("develop")
+    training = sub.add_parser("train")
+    test = sub.add_parser("evaluate", help="Report source and generator-only TTA metrics")
+    for command in (cache, development, training, test):
+        config_flag = "--run" if command is test else "--config"
+        command.add_argument(config_flag, type=Path, required=True)
         command.add_argument("--data", type=Path, required=True)
         command.add_argument("--output", type=Path, required=True)
         backbone_arguments(command)
         if command is not cache:
             command.add_argument("--cache", type=Path, required=True)
-        if command.prog.endswith(" train"):
-            command.add_argument("--development", type=Path, required=True)
-    test = sub.add_parser("evaluate", help="Report source and generator-only TTA metrics")
-    test.add_argument("--run", type=Path, required=True)
-    test.add_argument("--data", type=Path, required=True)
-    test.add_argument("--cache", type=Path, required=True)
-    test.add_argument("--output", type=Path, required=True)
-    backbone_arguments(test)
+    training.add_argument("--development", type=Path, required=True)
     smoke = sub.add_parser("smoke", help="CPU-only synthetic end-to-end test; no downloads")
     smoke.add_argument("--output", type=Path, required=True)
     return parser

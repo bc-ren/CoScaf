@@ -7,7 +7,6 @@ not distributed with this package.
 from __future__ import annotations
 
 import copy
-import hashlib
 import importlib
 import math
 import subprocess
@@ -17,19 +16,12 @@ from pathlib import Path
 import torch
 from torch import nn
 
+from .io import sha256 as file_sha256
+
 VIT_ID = "google/vit-base-patch16-224-in21k"
 VIT_REVISION = "b4569560a39a0f1af58e3ddaf17facf20ab919b0"
 VIT_WEIGHTS_SHA256 = "fd4e1169c7aa6c2dbfa8a6448be13b35abc0ee256190857c90009d12c094619b"
 RETIZERO_REVISION = "d72aadc692fbe33b182c79711bccb397edffb419"
-
-
-def file_sha256(path):
-    """Hash a large file without loading it into memory."""
-    digest = hashlib.sha256()
-    with Path(path).open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _run_block(layer, tokens):
@@ -44,6 +36,8 @@ class VisualPromptSuffix(nn.Module):
     tokens are inserted after CLS and discarded after each prompted block.
     """
 
+    _prefix_error = "Expected prefix tokens with shape [N,197|577,768]"
+
     def __init__(self, frozen_vit, count=16):
         super().__init__()
         layers = getattr(frozen_vit, "layers", None)
@@ -51,14 +45,17 @@ class VisualPromptSuffix(nn.Module):
             layers = frozen_vit.encoder.layer
         if len(layers) != 12 or count < 1:
             raise ValueError("Expected a 12-block ViT and at least one prompt token")
-        self.layers = nn.ModuleList([copy.deepcopy(layer) for layer in layers[10:]])
-        self.norm = copy.deepcopy(frozen_vit.layernorm)
+        self._initialize(layers[10:], frozen_vit.layernorm, frozen_vit, count, 768)
+
+    def _initialize(self, layers, norm, backbone, count, width):
+        self.layers = nn.ModuleList([copy.deepcopy(layer) for layer in layers])
+        self.norm = copy.deepcopy(norm)
         self.requires_grad_(False)
-        reference = next(frozen_vit.parameters())
+        reference = next(backbone.parameters())
         self.prompts = nn.Parameter(
-            torch.empty(2, count, 768, dtype=reference.dtype, device=reference.device)
+            torch.empty(2, count, width, dtype=reference.dtype, device=reference.device)
         )
-        radius = math.sqrt(6 / (3 * 16 * 16 + 768))
+        radius = math.sqrt(6 / (3 * 16 * 16 + width))
         nn.init.uniform_(self.prompts, -radius, radius)
         self.count = count
         self.enabled = True
@@ -66,8 +63,12 @@ class VisualPromptSuffix(nn.Module):
 
     def layer_views(self, raw):
         """Return fused, early, and late evidence in this order."""
-        if raw.ndim != 3 or raw.shape[1] not in (197, 577) or raw.shape[2] != 768:
-            raise ValueError("Expected prefix tokens with shape [N,197|577,768]")
+        if (
+            raw.ndim != 3
+            or raw.shape[1] not in (197, 577)
+            or raw.shape[2] != self.prompts.shape[-1]
+        ):
+            raise ValueError(self._prefix_error)
         h = raw
         for index, layer in enumerate(self.layers):
             if self.enabled:
@@ -100,38 +101,20 @@ class RetinaPrompt(VisualPromptSuffix):
     CoScaf uses the 1024-dimensional patch evidence, not native text scores.
     """
 
+    _prefix_error = "Expected retinal prefix tokens [N,197|577,1024]"
+
     def __init__(self, model, count=16):
         nn.Module.__init__(self)
         vision = model.vision_model.model.lora_vit
         if len(vision.blocks) != 24 or count < 1:
             raise ValueError("Expected the official RetiZero 24-block encoder")
-        self.layers = nn.ModuleList([copy.deepcopy(x) for x in vision.blocks[-2:]])
-        self.norm = copy.deepcopy(vision.fc_norm if vision.global_pool else vision.norm)
-        self.requires_grad_(False)
-        reference = next(vision.parameters())
-        self.prompts = nn.Parameter(
-            torch.empty(2, count, 1024, device=reference.device, dtype=reference.dtype)
+        self._initialize(
+            vision.blocks[-2:],
+            vision.fc_norm if vision.global_pool else vision.norm,
+            vision,
+            count,
+            1024,
         )
-        radius = math.sqrt(6 / (3 * 16 * 16 + 1024))
-        nn.init.uniform_(self.prompts, -radius, radius)
-        self.count = count
-        self.enabled = True
-        self.eval()
-
-    def layer_views(self, raw):
-        if raw.ndim != 3 or raw.shape[1] not in (197, 577) or raw.shape[2] != 1024:
-            raise ValueError("Expected retinal prefix tokens [N,197|577,1024]")
-        h = raw
-        for index, block in enumerate(self.layers):
-            if self.enabled:
-                prompt = self.prompts[index].unsqueeze(0).expand(len(h), -1, -1)
-                h = block(torch.cat([h[:, :1], prompt, h[:, 1:]], 1))
-                h = torch.cat([h[:, :1], h[:, 1 + self.count :]], 1)
-            else:
-                h = block(h)
-        early = self.norm(raw)[:, 1:]
-        late = self.norm(h)[:, 1:]
-        return (early + late) * 0.5, early, late
 
 
 def load_vit(snapshot=None, device="cpu", local_files_only=False):

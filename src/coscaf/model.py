@@ -17,6 +17,15 @@ def prototypes(parameters, semantics):
     return center, F.normalize(center[:, None] + residual, dim=-1)
 
 
+def _branch_scores(global_similarity, local_similarity, modes, prior=None):
+    route = (local_similarity / 0.5).softmax(-1) if prior is None else None
+    if prior is None:
+        prior = route.clamp_min(1e-12).log()
+    local = 0.1 * torch.logsumexp(local_similarity / 0.1 + prior, -1)
+    global_ = 0.1 * (torch.logsumexp(global_similarity / 0.1, -1) - math.log(modes))
+    return global_, local, prior, route
+
+
 def regional_moments(patch, projection):
     b, n, d = patch.shape
     side = math.isqrt(n)
@@ -73,7 +82,7 @@ class _BaseReadout(nn.Module):
         size = 5 * (moment_rank + moment_rank * (moment_rank + 1) // 2)
         self.moment = nn.Linear(size, a, bias=False)
         nn.init.zeros_(self.moment.weight)
-        self._anchor_names = ("center_weight", "center_bias", "mode_weight", "mode_bias")
+        self._anchor_names = GENERATOR
         for name in self._anchor_names:
             self.register_buffer("initial_" + name, getattr(self, name).detach().clone())
 
@@ -84,27 +93,28 @@ class _BaseReadout(nn.Module):
         return F.normalize(z, dim=-1)
 
     def prototypes(self, ids):
-        a = F.normalize(self.semantics[ids], dim=-1)
-        center = a @ self.center_weight + self.center_bias
-        residual = torch.einsum("ca,akd->ckd", a, self.mode_weight) + self.mode_bias
-        residual = residual - residual.mean(1, keepdim=True)
-        return F.normalize(center[:, None] + residual, dim=-1)
+        return prototypes({k: getattr(self, k) for k in GENERATOR}, self.semantics[ids])[1]
+
+    def _local_attention(self, patch, a):
+        q = self.query_high(self.query_low(a)).reshape(len(a), self.modes, patch.shape[-1])
+        return (
+            torch.einsum("cmd,bnd->bcmn", q, patch) / (math.sqrt(patch.shape[-1]) * 0.2)
+        ).softmax(-1)
+
+    def _moment_evidence(self, patch, a):
+        return 0.1 * torch.tanh(self.moment(regional_moments(patch, self.projection)) @ a.T)
 
     def forward(self, patch, ids, native_embedding=None, return_usage=False):
+        # Preserve the direct path's operation order for exact gradient replay.
         a = F.normalize(self.semantics[ids], dim=-1)
         p = self.prototypes(ids)
         global_z = torch.einsum("bd,ckd->bck", self.visual(patch.mean(1)), p)
-        q = self.query_high(self.query_low(a)).reshape(len(ids), self.modes, patch.shape[-1])
-        att = (
-            torch.einsum("cmd,bnd->bcmn", q, patch) / (math.sqrt(patch.shape[-1]) * 0.2)
-        ).softmax(-1)
+        att = self._local_attention(patch, a)
         local = self.visual(torch.einsum("bcmn,bnd->bcmd", att, patch))
         local_z = (local * p[None]).sum(-1)
         # Input-conditioned, differentiable mode routing, within this same model.
-        route = (local_z / 0.5).softmax(-1)
-        local_score = 0.1 * torch.logsumexp(local_z / 0.1 + route.clamp_min(1e-12).log(), -1)
-        global_score = 0.1 * (torch.logsumexp(global_z / 0.1, -1) - math.log(self.modes))
-        moments = 0.1 * torch.tanh(self.moment(regional_moments(patch, self.projection)) @ a.T)
+        global_score, local_score, _, route = _branch_scores(global_z, local_z, self.modes)
+        moments = self._moment_evidence(patch, a)
         if self.native:
             assert native_embedding is not None and native_embedding.shape[-1] == a.shape[-1]
             score = F.normalize(native_embedding, dim=-1) @ a.T
@@ -169,13 +179,11 @@ class CoScafReadout(_BaseReadout):
     def features(self, patch, ids):
         a = F.normalize(self.semantics[ids], dim=-1)
         d = patch.shape[-1]
-        q = self.query_high(self.query_low(a)).reshape(len(ids), self.modes, d)
-        logits = torch.einsum("cmd,bnd->bcmn", q, patch) / (math.sqrt(d) * 0.2)
-        att = logits.softmax(-1)
+        att = self._local_attention(patch, a)
         out = {
             "global": self.visual(patch.mean(1)),
             "local": self.visual(torch.einsum("bcmn,bnd->bcmd", att, patch)),
-            "moment": 0.1 * torch.tanh(self.moment(regional_moments(patch, self.projection)) @ a.T),
+            "moment": self._moment_evidence(patch, a),
         }
         if self.variant == "latent":
             pq = self.prior_high(self.prior_low(a)).reshape(len(ids), self.modes, d)
@@ -190,21 +198,15 @@ class CoScafReadout(_BaseReadout):
         (_, p) = prototypes(pars, self.semantics[ids])
         global_similarity = torch.einsum("bd,ckd->bck", feat["global"], p)
         local_similarity = (feat["local"] * p[None]).sum(-1)
-        prior = (
-            feat["prior"].log_softmax(-1)
-            if self.variant == "latent"
-            else (local_similarity / 0.5).softmax(-1).clamp_min(1e-12).log()
-        )
-        ls = 0.1 * torch.logsumexp(local_similarity / 0.1 + prior, -1)
-        gs = 0.1 * (torch.logsumexp(global_similarity / 0.1, -1) - math.log(self.modes))
+        prior = feat["prior"].log_softmax(-1) if self.variant == "latent" else None
+        gs, ls, prior, _ = _branch_scores(global_similarity, local_similarity, self.modes, prior)
         z = (1 - self.local_weight) * gs + self.local_weight * ls + feat["moment"]
-        extra = {}
-        responsibilities = (local_similarity / 0.1 + prior).softmax(-1)
-        extra.update(
-            local_responsibility=responsibilities,
-            global_responsibility=(global_similarity / 0.1).softmax(-1),
-        )
-        return (z, extra) if diagnostics else z
+        if diagnostics:
+            return z, {
+                "local_responsibility": (local_similarity / 0.1 + prior).softmax(-1),
+                "global_responsibility": (global_similarity / 0.1).softmax(-1),
+            }
+        return z
 
     def forward(self, patch, ids, native_embedding=None, return_usage=False):
         if self.variant == "original":
