@@ -1,4 +1,4 @@
-"""Command-line workflow for a complete CoScaf experiment."""
+"""CoScaf command-line interface."""
 
 import argparse
 import json
@@ -160,7 +160,7 @@ def make_parser():
     prepare.add_argument("--semantics", type=Path, help="CUB sent_splits.mat (1024D)")
     prepare.add_argument("--images", type=Path, help="Ordered JSON list of relative image paths")
     prepare.add_argument(
-        "--exclude-train", type=Path, help="Optional audited zero-based quarantine"
+        "--exclude-train", type=Path, help="Optional zero-based training exclusions"
     )
     prepare.add_argument("--output", type=Path, required=True)
     retinal = sub.add_parser("prepare-retinal", help="Import user-supplied RetiRareV2 metadata")
@@ -187,8 +187,6 @@ def make_parser():
         if command is not cache:
             command.add_argument("--cache", type=Path, required=True)
     training.add_argument("--development", type=Path, required=True)
-    smoke = sub.add_parser("smoke", help="CPU-only synthetic end-to-end test; no downloads")
-    smoke.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -220,12 +218,7 @@ def main(argv=None):
             )
         if not list(destination.glob("fold_*.json")):
             raise ValueError("No fixed development folds supplied")
-        print("Prepared RetiRareV2 metadata; no image or text encoder weights were modified")
-        return
-    if args.command == "smoke":
-        from .smoke import run_smoke
-
-        print(json.dumps(run_smoke(args.output), indent=2))
+        print("Prepared RetiRareV2 metadata")
         return
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
     torch.set_num_threads(args.threads)

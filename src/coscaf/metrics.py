@@ -107,7 +107,7 @@ def full_curve(scores, y, classes, seen):
     representatives[0] = gs[0] - 1e-6
     curve = np.column_stack([representatives, s, u, h])
     best = np.lexsort((representatives, abs(representatives), -h))[0]
-    # np.trapz was removed in NumPy2.4. This works with both audited runtimes.
+    # np.trapz was removed in NumPy2.4. Support both NumPy APIs.
     area = float(np.sum(np.diff(u) * (s[1:] + s[:-1]) * 0.5))
     return dict(gamma=float(representatives[best]), max_H=float(h[best]), AUSUC=area), curve
 

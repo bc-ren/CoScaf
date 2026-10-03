@@ -17,5 +17,4 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest -q
-      - run: coscaf smoke --output /tmp/coscaf-smoke
       - run: python -m build

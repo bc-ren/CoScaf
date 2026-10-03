@@ -10,14 +10,13 @@ Adapting in Concert: Recognizing the Unseen via Semantic Scaffolding
 - AWA2/CUB/SUN use frozen `google/vit-base-patch16-224-in21k` at 384 × 384.
   RetiRare-74 uses the official RetiZero backbone at 224 × 224.
 
-Create an environment and install the package (CUDA 12.1 example):
+Install with CUDA 12.1:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
-pip install -e '.[dev]'
-pytest -q
+pip install -e .
 ```
 
 Data and pretrained weights are obtained separately. See [data setup](docs/data.md)
@@ -26,7 +25,7 @@ in `configs/`; CUB requires 1024D semantics from `sent_splits.mat`.
 
 ## Training
 
-Run from the repository root. The example below uses AWA2. For other datasets,
+Run from the repository root. The commands below use AWA2. For other datasets,
 follow [data setup](docs/data.md), then substitute their configuration and paths.
 
 ```bash
@@ -68,5 +67,4 @@ curves are saved alongside it. TTA updates only the generator using the
 unlabeled test set; test labels are used only to calculate metrics.
 
 Use a new output directory for each run. For parallel runs, select `cuda:0` or
-`cuda:1`. A data-free workflow check is available with
-`coscaf smoke --output /tmp/coscaf-smoke`.
+`cuda:1`.

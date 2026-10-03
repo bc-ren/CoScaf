@@ -24,10 +24,8 @@ def _check_config(bundle, config):
 def _check_cache(cache, config):
     """Reject caches from a different representation before fitting anything."""
     metadata = cache.manifest["backbone"]
-    if config["backbone"] == "synthetic":
-        if metadata.get("id") != "synthetic":
-            raise ValueError("Synthetic checks require synthetic inputs")
-        return
+    if config["backbone"] not in ("vit_base", "retizero"):
+        raise ValueError("Backbone must be vit_base or retizero")
     natural = config["backbone"] == "vit_base"
     expected = {
         "id": VIT_ID if natural else "RetiZero",
@@ -48,17 +46,16 @@ def _check_cache(cache, config):
         raise ValueError("Cached token shape differs from the configured backbone")
 
 
-def _checked_factory(factory, cache, config):
+def _checked_factory(factory, cache):
     def build(device):
         suffix = factory(device)
-        if config["backbone"] != "synthetic":
-            provenance = getattr(suffix, "backbone_provenance", {})
-            weights = provenance.get("weights_sha256")
-            if weights != cache.manifest["backbone"].get("weights_sha256"):
-                raise ValueError("Frozen suffix weights differ from the prefix cache")
-            for key in ("config_sha256", "processor_sha256", "source_sha256"):
-                if provenance.get(key) != cache.manifest["backbone"].get(key):
-                    raise ValueError(f"Frozen suffix and prefix cache differ: {key}")
+        provenance = getattr(suffix, "backbone_provenance", {})
+        weights = provenance.get("weights_sha256")
+        if weights != cache.manifest["backbone"].get("weights_sha256"):
+            raise ValueError("Frozen suffix weights differ from the prefix cache")
+        for key in ("config_sha256", "processor_sha256", "source_sha256"):
+            if provenance.get(key) != cache.manifest["backbone"].get(key):
+                raise ValueError(f"Frozen suffix and prefix cache differ: {key}")
         return suffix
 
     return build
@@ -174,7 +171,7 @@ def develop(config, data_dir, cache_dir, output, suffix_factory, device="cpu"):
     _check_config(bundle, config)
     cache = PrefixCache(cache_dir, bundle, "train")
     _check_cache(cache, config)
-    suffix_factory = _checked_factory(suffix_factory, cache, config)
+    suffix_factory = _checked_factory(suffix_factory, cache)
     read = _reader(cache, device)
     output = Path(output)
     output.mkdir(parents=True, exist_ok=False)
@@ -303,7 +300,7 @@ def train(config, data_dir, cache_dir, development, output, suffix_factory, devi
     _check_cache(cache, config)
     if calibration["training_cache_sha256"] != fingerprint(cache.manifest):
         raise ValueError("Training cache differs from the frozen development cache")
-    suffix_factory = _checked_factory(suffix_factory, cache, config)
+    suffix_factory = _checked_factory(suffix_factory, cache)
     read = _reader(cache, device)
     output = Path(output)
     output.mkdir(parents=True, exist_ok=False)
@@ -342,7 +339,7 @@ def evaluate_run(run, data_dir, cache_dir, output, suffix_factory, device="cpu")
     _check_cache(cache, config)
     if cache.manifest["backbone"].get("weights_sha256") != freeze["backbone"].get("weights_sha256"):
         raise ValueError("Test and training features use different pretrained checkpoints")
-    suffix_factory = _checked_factory(suffix_factory, cache, config)
+    suffix_factory = _checked_factory(suffix_factory, cache)
     output.mkdir(parents=True, exist_ok=False)
     state = torch.load(run / "model.pt", map_location=device, weights_only=True)
     model = build_from_state(state, config["source"], suffix_factory, device)
