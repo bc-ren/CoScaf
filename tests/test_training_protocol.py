@@ -143,7 +143,7 @@ class SyntheticSuffix(nn.Module):
 
 
 def small_config():
-    config_path = Path(__file__).parents[1] / "configs/CUB/CoScaf-no-anchor.json"
+    config_path = Path(__file__).parents[1] / "configs/CUB-best.json"
     config = read_json(config_path)
     config.update(dataset="synthetic", semantics_dim=6, visual_dim=16, seed=7033, folds=[0, 1])
     config["source"].update(

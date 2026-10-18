@@ -29,9 +29,9 @@ Set `MODEL=CUB` or `MODEL=RetiRare-74`.
 ```bash
 MODEL=CUB
 python -m coscaf.historical --mode verify \
-  --manifest configs/$MODEL/historical-replay.json --assets ../CoScaf-assets
+  --manifest manifests/$MODEL.json --assets ../CoScaf-assets
 python -m coscaf.historical --mode replay \
-  --manifest configs/$MODEL/historical-replay.json --assets ../CoScaf-assets \
+  --manifest manifests/$MODEL.json --assets ../CoScaf-assets \
   --output outputs/$MODEL-replay --device cuda:0
 ```
 
@@ -45,12 +45,12 @@ the inference command above. Run the following in Bash, choosing `AWA2`, `CUB`,
 DATASET=CUB
 ASSETS=../CoScaf-assets
 DATA=data_splits/$DATASET
-CONFIG=configs/$DATASET/CoScaf-no-anchor.json
+CONFIG=configs/$DATASET-best.json
 CACHE=$ASSETS/cache/$DATASET
 RUN=runs/$DATASET
 BACKBONE=(--vit-snapshot "$ASSETS/models/backbones/vit_base_in21k")
 if [ "$DATASET" = RetiRare74 ]; then
-  CONFIG=configs/RetiRare-74/CoScaf-no-anchor.json
+  CONFIG=configs/RetiRare-74-best.json
   BACKBONE=(--retizero-source "$ASSETS/code/retinal/third_party/RetiZero_d72aadc"
     --retizero-checkpoint "$ASSETS/models/backbones/retizero/RetiZero.pth"
     --bert-path "$ASSETS/models/backbones/clinicalbert")
