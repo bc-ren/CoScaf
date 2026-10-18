@@ -1,11 +1,4 @@
-"""Replay released historical checkpoints without training or test-time adaptation.
-
-Run ``python -m coscaf.historical --help``. ``verify`` hashes all assets and
-backbone dependencies; ``audit`` recomputes metrics from the saved score banks;
-``replay`` forwards cached prefix tokens through the saved original models.
-Historical TTA parameters are loaded, never optimized. All computations use
-FP32; metric arithmetic uses FP64. Subset checks never establish full-test replay.
-"""
+"""Verify assets, audit saved scores, or replay checkpoints without optimization."""
 
 from __future__ import annotations
 

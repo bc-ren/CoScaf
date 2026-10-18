@@ -1,100 +1,77 @@
 # CoScaf
 
-**Adapting in Concert: Recognizing the Unseen via Semantic Scaffolding**
+## Installation
 
-This release includes the CoScaf model, source training, generator-only test-time
-adaptation, original dataset splits and per-dataset configurations. CUB and
-RetiRare-74 cached features, pretrained backbones and historical checkpoints are
-distributed through a separate `CoScaf-assets` package; the download link will
-be added after the author uploads it. Raw images are not included.
-
-The active training code omits the source and TTA parameter-anchor losses.
-Historical checkpoints retain their original learned parameters and can be used
-for inference without rerunning TTA. Historical scores are not measurements of
-the modified training objective. See [model records](docs/paper-best-h-configs.md).
-
-## Install
-
-Use Python 3.12 and a PyTorch installation appropriate for your device:
+Python 3.12; use a CUDA-compatible PyTorch installation for GPU runs.
 
 ```bash
+git clone https://github.com/bc-ren/CoScaf.git
+cd CoScaf
 python -m venv .venv
 source .venv/bin/activate
-pip install -e '.[dev,retina]'
+pip install -e '.[retina]'
 ```
 
-Transformers is pinned to 5.13.1. FP32 is used throughout the model; AMP and TF32
-are disabled. Cached features avoid differences from image decoding. ORIX used
-CUDA; local CPU checks and their exact scope are recorded in
-[release validation](docs/release-validation.json).
+## Data
 
-## Historical checkpoint inference
+Google Drive: **[link to be added]**
 
-Place the separately downloaded `CoScaf-assets` directory alongside this repository.
-The following commands use the original CUB source checkpoint, saved adapted
-generator and frozen calibration offsets. They do not train or rerun adaptation.
+Extract `CoScaf-assets/` alongside this repository. Use the included
+`data_splits/` and the CUB/RetiRare-74 caches. AWA2 and SUN require their original
+images to generate caches.
+
+## Run
+
+### Saved checkpoint inference
+
+Set `MODEL=CUB` or `MODEL=RetiRare-74`.
 
 ```bash
+MODEL=CUB
 python -m coscaf.historical --mode verify \
-  --manifest configs/CUB/historical-replay.json --assets ../CoScaf-assets
-
+  --manifest configs/$MODEL/historical-replay.json --assets ../CoScaf-assets
 python -m coscaf.historical --mode replay \
-  --manifest configs/CUB/historical-replay.json --assets ../CoScaf-assets \
-  --output outputs/cub-replay --device cuda:0
+  --manifest configs/$MODEL/historical-replay.json --assets ../CoScaf-assets \
+  --output outputs/$MODEL-replay --device cuda:0
 ```
 
-For RetiRare-74, replace `CUB` in the manifest path with `RetiRare-74`.
-Use `--limit 16 --device cpu` for a small forward check. A subset check does not
-establish full-test replay. `--mode audit` recomputes metrics from the saved score
-banks without loading the backbone. `--mode verify` checks all declared asset
-hashes and creates a local receipt; rerun it after moving or extracting assets.
+### Training and evaluation
 
-| Historical TTA checkpoint | Candidate / seed | H (%) | Same-model CZSL (%) |
-|---|---|---:|---:|
-| CUB | b128_p20 / 7033 | 86.7560 | 93.6216 |
-| RetiRare-74 | b032_p22 / 7031 | 30.3343 | 34.0510 |
-
-These are the paper's H-selected TTA models. The replay command also reports the
-matched source-model metrics. It does not substitute a CZSL maximum from another
-run. Full-precision S/U/H/CZSL/AUSUC and file hashes are in each replay manifest.
-
-## Train the no-anchor model
-
-Use the original splits in `data_splits/`; do not regenerate them for these
-configurations. All four dataset configurations are under [`configs/`](configs/README.md).
-CUB and RetiRare-74 can use the supplied train caches directly. For CUB:
+The current training configuration omits anchor losses; saved checkpoints use
+the inference command above. Run the following in Bash, choosing `AWA2`, `CUB`,
+`SUN`, or `RetiRare74`:
 
 ```bash
-coscaf develop --config configs/CUB/CoScaf-no-anchor.json \
-  --data data_splits/CUB --cache ../CoScaf-assets/cache/CUB/train-portable \
-  --vit-snapshot ../CoScaf-assets/models/backbones/vit_base_in21k \
-  --output runs/cub/dev --device cuda:0
+DATASET=CUB
+ASSETS=../CoScaf-assets
+DATA=data_splits/$DATASET
+CONFIG=configs/$DATASET/CoScaf-no-anchor.json
+CACHE=$ASSETS/cache/$DATASET
+RUN=runs/$DATASET
+BACKBONE=(--vit-snapshot "$ASSETS/models/backbones/vit_base_in21k")
+if [ "$DATASET" = RetiRare74 ]; then
+  CONFIG=configs/RetiRare-74/CoScaf-no-anchor.json
+  BACKBONE=(--retizero-source "$ASSETS/code/retinal/third_party/RetiZero_d72aadc"
+    --retizero-checkpoint "$ASSETS/models/backbones/retizero/RetiZero.pth"
+    --bert-path "$ASSETS/models/backbones/clinicalbert")
+fi
 
-coscaf train --config configs/CUB/CoScaf-no-anchor.json \
-  --data data_splits/CUB --cache ../CoScaf-assets/cache/CUB/train-portable \
-  --vit-snapshot ../CoScaf-assets/models/backbones/vit_base_in21k \
-  --development runs/cub/dev --output runs/cub/model --device cuda:0
-
-coscaf evaluate --run runs/cub/model --data data_splits/CUB \
-  --cache ../CoScaf-assets/cache/CUB/test \
-  --vit-snapshot ../CoScaf-assets/models/backbones/vit_base_in21k \
-  --output runs/cub/test --device cuda:0
+coscaf develop --config "$CONFIG" --data "$DATA" --cache "$CACHE/train-portable" \
+  "${BACKBONE[@]}" --output "$RUN/dev" --device cuda:0
+coscaf train --config "$CONFIG" --data "$DATA" --cache "$CACHE/train-portable" \
+  "${BACKBONE[@]}" --development "$RUN/dev" --output "$RUN/model" --device cuda:0
+coscaf evaluate --run "$RUN/model" --data "$DATA" --cache "$CACHE/test" \
+  "${BACKBONE[@]}" --output "$RUN/test" --device cuda:0
 ```
 
-Development uses seed 7011, up to 100 epochs, and patience 5 on TUNE H after CAL
-calibration at each epoch. Final training starts afresh with the configured final
-seed and the ceiling of the median best development epoch from this new run.
-AWA2/CUB/RetiRare-74 use `initial_lr * 0.95 ** (epoch - 1)`; SUN uses constant LR.
-Test labels enter only the final metric calculation. New no-anchor runs must use
-their own development calibration, not historical offsets.
-
-[Data setup](docs/data.md) lists retinal backbone arguments and instructions for
-extracting AWA2/SUN features. [Asset contents](docs/assets.md) describes the
-separate download. Use a new output directory for every run.
-
-## Checks
+For AWA2/SUN, generate the train cache **before** `develop` and the test cache
+**after** `train`, using the variables above. `IMAGE_ROOT` must resolve the paths
+in `data_splits/$DATASET/images.jsonl`.
 
 ```bash
-pytest
-ruff check src tests
+IMAGE_ROOT=/path/to/dataset
+coscaf cache --role train --config "$CONFIG" --data "$DATA" \
+  --image-root "$IMAGE_ROOT" "${BACKBONE[@]}" --output "$CACHE/train-portable"
+coscaf cache --role test --config "$CONFIG" --data "$DATA" --run "$RUN/model" \
+  --image-root "$IMAGE_ROOT" "${BACKBONE[@]}" --output "$CACHE/test"
 ```

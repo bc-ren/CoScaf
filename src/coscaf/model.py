@@ -150,13 +150,7 @@ class CoScafModel(nn.Module):
 
 
 class CoScafReadout(_BaseReadout):
-    """Three-branch matching with shared semantic-conditioned prototypes.
-
-    ``original`` routes modes using local prototype compatibility; ``latent``
-    uses a separately learned semantic-query prior from the same image patches.
-    Global and local branches share prototypes. The regional branch supplies a
-    bounded residual score. All semantic rows remain fixed buffers.
-    """
+    """Shared-prototype matching with prototype-based or latent-prior routing."""
 
     def __init__(self, *args, variant="original", prior_temperature=0.5, **kwargs):
         super().__init__(*args, **kwargs)

@@ -1,5 +1,4 @@
 include README.md NOTICE.md
-recursive-include configs *.json *.md
-recursive-include docs *.md *.json
-recursive-include data_splits *.npz *.json *.jsonl *.md
+recursive-include configs *.json
+recursive-include data_splits *.npz *.json *.jsonl
 recursive-include tests *.py

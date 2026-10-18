@@ -273,26 +273,11 @@ def adapt_evidence(
     steps=None,
     progress=None,
 ):
-    """Adapt a copy of the shared generator using unlabeled target evidence.
+    """Adapt a generator copy from unlabeled evidence and fixed source gamma.
 
-    Args:
-        head: Source readout placed on ``device``. It remains unchanged.
-        ids: Ordered global candidate-class indices into ``head.semantics``.
-        cache: Detached arrays with ``global``, ``local``, ``moment`` and
-            cross-layer ``view10_global``, ``view12_global``, ``view10_scores``,
-            ``view12_scores``. Latent readouts additionally require ``prior``.
-        seen_mask: Boolean vector in the same candidate order as ``ids``.
-        gamma: Source calibration offset, fixed before target adaptation.
-        hp: Transport and objective hyperparameters from a configuration file.
-        setting: Learning-rate multiplier, local-target mixture and KL weight.
-        device: PyTorch device shared with the source readout.
-        batch: Memory chunk size. Every step uses the entire target set.
-        steps: Optional replacement for the configured number of steps.
-        progress: Optional callback receiving the accumulated loss history.
-
-    Returns:
-        Raw scores, a separate adapted generator, optimizer state, and numeric
-        diagnostics. Target labels and target-fitted calibration are not inputs.
+    ``ids`` and ``seen_mask`` share candidate order. ``batch`` controls chunking;
+    each step covers the full target set. Return scores, generator state,
+    optimizer state, and diagnostics; leave the source head unchanged.
     """
     _validate_inputs(head, ids, cache, seen_mask, gamma, hp, setting, device, batch, steps)
     source = {k: getattr(head, k).detach().clone() for k in GENERATOR}

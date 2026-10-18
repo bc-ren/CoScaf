@@ -1,8 +1,4 @@
-"""Frozen pretrained backbones and jointly learned late visual prompts.
-
-Download pretrained models separately. Dataset images and pretrained weights are
-not distributed with this package.
-"""
+"""Frozen pretrained backbones with trainable late visual prompts."""
 
 from __future__ import annotations
 
