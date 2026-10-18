@@ -125,19 +125,17 @@ def make_optimizer(model, config):
     return torch.optim.AdamW(groups, weight_decay=config["weight_decay"])
 
 
-def source_loss(model, scores, labels, weights, config):
+def source_loss(scores, labels, weights, config):
     classification = F.cross_entropy(scores / config["loss_temperature"], labels, reduction="none")
-    return (classification * weights[labels]).mean() + config[
-        "anchor_weight"
-    ] * model.head.anchor_loss()
+    return (classification * weights[labels]).mean()
 
 
 def train_fit(model, reader, fit_indices, labels, config, seed, device="cpu", progress=None):
     """Train a fresh source model; ``reader(indices)`` returns prefix tokens.
 
     Call ``make_model`` immediately beforehand. No task checkpoints are read.
-    A microbatch contributes its fraction of the full effective-batch mean,
-    including the generator anchor. Dropout is disabled throughout training.
+    A microbatch contributes its fraction of the full class-balanced
+    cross-entropy mean. Dropout is disabled throughout training.
     """
     fit = np.asarray(fit_indices, dtype=np.int64)
     labels = np.asarray(labels, dtype=np.int64)
@@ -168,7 +166,7 @@ def train_fit(model, reader, fit_indices, labels, config, seed, device="cpu", pr
             for offset in range(0, len(indices), micro):
                 sub = indices[offset : offset + micro]
                 scores = model(reader(sub).to(device), ids)
-                loss = source_loss(model, scores, y[offset : offset + micro], weights, config)
+                loss = source_loss(scores, y[offset : offset + micro], weights, config)
                 if not torch.isfinite(loss):
                     raise FloatingPointError("Nonfinite source loss")
                 scale = len(sub) / len(indices)

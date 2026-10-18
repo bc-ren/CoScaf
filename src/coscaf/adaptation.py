@@ -345,18 +345,11 @@ def adapt_evidence(
         ma = ((1 - (p * t["mode_center"]).sum(-1))[active] * t["mode_mass"][active]).sum() / t[
             "mode_mass"
         ][active].sum().clamp_min(1e-12)
-        anchor = torch.stack(
-            [
-                (v - source[k]).square().mean() / source[k].square().mean().clamp_min(1e-08)
-                for (k, v) in params.items()
-            ]
-        ).mean()
         rel = semantic_relation_loss(base, sem)
         top = source_topology_loss(base, p, t["source_base"], t["source_proto"])
         reg = (
             hp["class_alignment_weight"] * ca
             + hp["mode_alignment_weight"] * ma
-            + hp["anchor_weight"] * anchor
             + hp["relation_weight"] * rel
             + hp.get("topology_weight", 0.0) * top
         )

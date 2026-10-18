@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 import pytest
 import torch
@@ -5,8 +7,8 @@ from torch import nn
 from torch.nn import functional as F
 
 from coscaf.backbones import VisualPromptSuffix
-from coscaf.model import GENERATOR, CoScafReadout, regional_moments
-from coscaf.training import build_from_state, make_model, schedule, train_fit
+from coscaf.model import GENERATOR, CoScafModel, CoScafReadout, regional_moments
+from coscaf.training import build_from_state, make_model, schedule, source_loss, train_fit
 
 
 def readout(variant="original", modes=3, native=False):
@@ -118,6 +120,62 @@ class ToySuffix(nn.Module):
             self.prompts.copy_(state["prompts"])
 
 
+def test_source_loss_and_gradient_are_class_balanced_cross_entropy():
+    scores = torch.tensor(
+        [[0.7, -0.3, 0.2], [0.1, 0.9, -0.2], [-0.4, 0.2, 0.5]],
+        dtype=torch.float64,
+        requires_grad=True,
+    )
+    labels = torch.tensor([0, 0, 2])
+    weights = torch.tensor([0.5, 1.0, 2.0], dtype=torch.float64)
+    temperature = 0.3
+    loss = source_loss(scores, labels, weights, {"loss_temperature": temperature})
+    probabilities = (scores.detach() / temperature).softmax(-1)
+    expected_loss = -(probabilities[torch.arange(3), labels].log() * weights[labels]).mean()
+    torch.testing.assert_close(loss, expected_loss)
+    loss.backward()
+    expected_gradient = (
+        (probabilities - F.one_hot(labels, 3)) * weights[labels, None] / (3 * temperature)
+    )
+    torch.testing.assert_close(scores.grad, expected_gradient)
+
+
+@pytest.mark.parametrize("variant", ["original", "latent"])
+def test_legacy_checkpoint_buffers_do_not_change_restored_scores(variant):
+    model = CoScafModel(ToySuffix("cpu"), readout(variant))
+    state = copy.deepcopy(model.trainable_state())
+    assert not any(name.startswith("initial_") for name in state["head"])
+    legacy = copy.deepcopy(state)
+    for name in GENERATOR:
+        legacy["head"]["initial_" + name] = torch.zeros_like(state["head"][name])
+    before = copy.deepcopy(legacy)
+    restored = build_from_state(
+        legacy, {"routing": variant, "local_weight": 0.25}, ToySuffix
+    )
+    raw, classes = torch.randn(2, 16, 32), torch.arange(6)
+    torch.testing.assert_close(model(raw, classes), restored(raw, classes), atol=0, rtol=0)
+    assert set(restored.trainable_state()["head"]) == set(state["head"])
+    assert set(legacy["head"]) == set(before["head"])
+    for key in before["head"]:
+        torch.testing.assert_close(legacy["head"][key], before["head"][key], atol=0, rtol=0)
+
+
+@pytest.mark.parametrize("damage", ["unexpected", "missing", "wrong_shape"])
+def test_legacy_checkpoint_loading_still_validates_active_state(damage):
+    model = CoScafModel(ToySuffix("cpu"), readout())
+    state = copy.deepcopy(model.trainable_state())
+    for name in GENERATOR:
+        state["head"]["initial_" + name] = torch.zeros_like(state["head"][name])
+    if damage == "unexpected":
+        state["head"]["initial_unrelated"] = torch.zeros(1)
+    elif damage == "missing":
+        del state["head"]["query_low.weight"]
+    else:
+        state["head"]["query_low.weight"] = torch.zeros(1)
+    with pytest.raises(RuntimeError):
+        model.load_trainable_state(state)
+
+
 def test_fresh_training_state_round_trip_and_semantics_frozen():
     rng = np.random.default_rng(7)
     semantics = rng.normal(size=(5, 7))
@@ -136,7 +194,6 @@ def test_fresh_training_state_round_trip_and_semantics_frozen():
         "moment_lr": 0.001,
         "weight_decay": 0.0001,
         "loss_temperature": 0.1,
-        "anchor_weight": 0.1,
         "batch_size": 7,
         "micro_batch_size": 3,
         "epochs": 1,

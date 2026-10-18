@@ -82,9 +82,6 @@ class _BaseReadout(nn.Module):
         size = 5 * (moment_rank + moment_rank * (moment_rank + 1) // 2)
         self.moment = nn.Linear(size, a, bias=False)
         nn.init.zeros_(self.moment.weight)
-        self._anchor_names = GENERATOR
-        for name in self._anchor_names:
-            self.register_buffer("initial_" + name, getattr(self, name).detach().clone())
 
     def visual(self, value):
         z = F.normalize(value, dim=-1) - self.visual_mean
@@ -125,16 +122,6 @@ class _BaseReadout(nn.Module):
             )
         return (score, route) if return_usage else score
 
-    def anchor_loss(self):
-        terms = []
-        for name in self._anchor_names:
-            start = getattr(self, "initial_" + name)
-            terms.append(
-                (getattr(self, name) - start).square().mean()
-                / start.square().mean().clamp_min(1e-6)
-            )
-        return torch.stack(terms).mean()
-
 
 class CoScafModel(nn.Module):
     """A prompted frozen suffix and a shared semantic readout."""
@@ -153,7 +140,12 @@ class CoScafModel(nn.Module):
         return {"head": self.head.state_dict(), "prompt": self.suffix.adapter_state()}
 
     def load_trainable_state(self, state):
-        self.head.load_state_dict(state["head"], strict=True)
+        # Older checkpoints contain four buffers used only by the removed
+        # source anchor. Ignore exactly those keys; validate all active state.
+        head_state = state["head"].copy()
+        for name in GENERATOR:
+            head_state.pop("initial_" + name, None)
+        self.head.load_state_dict(head_state, strict=True)
         self.suffix.load_adapter(state["prompt"])
 
 

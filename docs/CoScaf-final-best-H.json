@@ -78,7 +78,7 @@
         "tf32": false,
         "amp": false
       },
-      "config": "configs/AWA2/CoScaf-final-best-H.json",
+      "config": "configs/AWA2/archive/CoScaf-final-best-H.json",
       "config_sha256": "586b41a0f8ce4448ccf3648f450f9632c04727f13002838cd569d7c6118f37c9",
       "archived_artifact_hashes": {
         "source_model_sha256": "89d7f67e7b3fb0f9aff123303a7be720f0b9c1206d12b39cb3a559393b345aac",
@@ -108,7 +108,17 @@
         "The public pipeline derives calibration from its own development output and checks exact config identity; it does not consume the frozen source/TTA calibration exported in this record.",
         "Data membership, duplicate exclusions, cached FP32 features, backbone weights and preprocessing must match the archived run; JSON values alone do not establish this parity.",
         "Public-code parameter mapping is provided for comparison, not a claim of bitwise parity with the archived implementation."
-      ]
+      ],
+      "current_configuration": {
+        "config": "configs/AWA2/CoScaf-no-anchor.json",
+        "config_sha256": "245973faff8743e96052f3142dfecc603aeab1c19e49493550451a2e995cfc99",
+        "removed_parameters": [
+          "source.anchor_weight",
+          "adaptation.anchor_weight"
+        ],
+        "archived_metrics_apply": false,
+        "benchmark_results": null
+      }
     },
     "CUB": {
       "record_id": "A/CUB/tta/b128_p20/7033",
@@ -180,7 +190,7 @@
         "tf32": false,
         "amp": false
       },
-      "config": "configs/CUB/CoScaf-final-best-H.json",
+      "config": "configs/CUB/archive/CoScaf-final-best-H.json",
       "config_sha256": "6c67b4ab0bc142c55715c3ade5d59d078e5ec7d2f946d03fa4cff838a870518b",
       "archived_artifact_hashes": {
         "source_model_sha256": "1098dd5aeb4c02eeec04df2e3db2e94ea614ff19a18de12c67aa03d9ddfc86c5",
@@ -210,7 +220,17 @@
         "The public pipeline derives calibration from its own development output and checks exact config identity; it does not consume the frozen source/TTA calibration exported in this record.",
         "Data membership, duplicate exclusions, cached FP32 features, backbone weights and preprocessing must match the archived run; JSON values alone do not establish this parity.",
         "Public-code parameter mapping is provided for comparison, not a claim of bitwise parity with the archived implementation."
-      ]
+      ],
+      "current_configuration": {
+        "config": "configs/CUB/CoScaf-no-anchor.json",
+        "config_sha256": "0229ed10360d31c094584e50e5d934ba2795ea8d9c6a5139e1bcd71c707c5421",
+        "removed_parameters": [
+          "source.anchor_weight",
+          "adaptation.anchor_weight"
+        ],
+        "archived_metrics_apply": false,
+        "benchmark_results": null
+      }
     },
     "SUN": {
       "record_id": "B/SUN/tta/b032_p08/7033",
@@ -282,7 +302,7 @@
         "tf32": false,
         "amp": false
       },
-      "config": "configs/SUN/CoScaf-final-best-H.json",
+      "config": "configs/SUN/archive/CoScaf-final-best-H.json",
       "config_sha256": "5a43e02dcdb4e3bff7bb6934fb43178c735dd7bae84d67c3e0a05adcf82d05c8",
       "archived_artifact_hashes": {
         "source_model_sha256": "6243f1021df82d8b28d17956567d69e81382deb9fe751081b0d5f0f93368a9ba",
@@ -311,7 +331,17 @@
         "The public pipeline derives calibration from its own development output and checks exact config identity; it does not consume the frozen source/TTA calibration exported in this record.",
         "Data membership, duplicate exclusions, cached FP32 features, backbone weights and preprocessing must match the archived run; JSON values alone do not establish this parity.",
         "Public-code parameter mapping is provided for comparison, not a claim of bitwise parity with the archived implementation."
-      ]
+      ],
+      "current_configuration": {
+        "config": "configs/SUN/CoScaf-no-anchor.json",
+        "config_sha256": "22c68413080dcaa4a3510c802a31bb0355a7498d80babbd923f534a0c3331eb8",
+        "removed_parameters": [
+          "source.anchor_weight",
+          "adaptation.anchor_weight"
+        ],
+        "archived_metrics_apply": false,
+        "benchmark_results": null
+      }
     },
     "RetiRareV2": {
       "record_id": "A/RetiRare74/tta/b032_p22/7031",
@@ -389,7 +419,7 @@
         "tf32": false,
         "amp": false
       },
-      "config": "configs/RetiRare-74/CoScaf-final-best-H.json",
+      "config": "configs/RetiRare-74/archive/CoScaf-final-best-H.json",
       "config_sha256": "a284fce0bc67c8ddb6ff488154d6e1ed585aea28e34e80b4ceaf00994e8836d9",
       "archived_artifact_hashes": {
         "source_model_sha256": "f916497ef1c2ba882ee40980d5cf5517acb541783e1795976aedcd3b1a3096b2",
@@ -420,7 +450,23 @@
         "The public pipeline derives calibration from its own development output and checks exact config identity; it does not consume the frozen source/TTA calibration exported in this record.",
         "Data membership, duplicate exclusions, cached FP32 features, backbone weights and preprocessing must match the archived run; JSON values alone do not establish this parity.",
         "Public-code parameter mapping is provided for comparison, not a claim of bitwise parity with the archived implementation."
-      ]
+      ],
+      "current_configuration": {
+        "config": "configs/RetiRare-74/CoScaf-no-anchor.json",
+        "config_sha256": "d5eff64c9bac5f2bf254e4d611ca2800a794efdc13a8d59447aa28d4cd1218d2",
+        "removed_parameters": [
+          "source.anchor_weight",
+          "adaptation.anchor_weight"
+        ],
+        "archived_metrics_apply": false,
+        "benchmark_results": null
+      }
     }
+  },
+  "current_code_change": {
+    "change": "Source-training and TTA parameter anchor losses removed.",
+    "archived_config_commit": "32b1950a888a53f4473646964afcd4411c872d00",
+    "benchmark_results_for_modified_recipe": null,
+    "checkpoint_compatibility": "Legacy source weights can be restored; rerunning training or TTA uses the modified objective, not the archived trajectory."
   }
 }

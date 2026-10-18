@@ -25,20 +25,21 @@ by dataset under [`configs/`](configs/README.md):
 
 ```text
 configs/
-  AWA2/CoScaf-final-best-H.json
-  CUB/CoScaf-final-best-H.json
-  SUN/CoScaf-final-best-H.json
-  RetiRare-74/CoScaf-final-best-H.json
+  AWA2/CoScaf-no-anchor.json
+  CUB/CoScaf-no-anchor.json
+  SUN/CoScaf-no-anchor.json
+  RetiRare-74/CoScaf-no-anchor.json
 ```
 
 CUB requires 1024D semantics from `sent_splits.mat`.
 
-The supplied configurations now record the paper's **CoScaf-final-best-H**
-models with TTA. See [configuration records](docs/paper-best-h-configs.md)
-for model identities, same-run metrics, loss coefficients and the archived
-training protocol. The public pipeline does not yet implement that protocol's
-per-epoch development selection or dataset-specific LR schedule; the commands
-below run the public pipeline, not an exact replay of the archived best-H runs.
+The active `CoScaf-no-anchor.json` configurations remove the source-training
+and TTA parameter anchor losses. The original best-H configurations are retained
+in each dataset's `archive/` directory. No benchmark results have been measured
+for the modified recipe; the archived best-H metrics do not describe it.
+See [configuration records](docs/paper-best-h-configs.md) for model identities
+and the original training protocol. The public pipeline also lacks that
+protocol's per-epoch development selection and dataset-specific LR schedule.
 
 ## Training
 
@@ -50,14 +51,14 @@ coscaf prepare-natural --dataset AWA2 \
   --labels /data/AWA2/res101.mat --splits /data/AWA2/att_splits.mat \
   --images /data/AWA2/images.json --output data/awa2
 
-coscaf cache --config configs/AWA2/CoScaf-final-best-H.json --data data/awa2 \
+coscaf cache --config configs/AWA2/CoScaf-no-anchor.json --data data/awa2 \
   --image-root /data/AWA2/JPEGImages --role train \
   --output cache/awa2/train --device cuda:0
 
-coscaf develop --config configs/AWA2/CoScaf-final-best-H.json --data data/awa2 \
+coscaf develop --config configs/AWA2/CoScaf-no-anchor.json --data data/awa2 \
   --cache cache/awa2/train --output runs/awa2/validation --device cuda:0
 
-coscaf train --config configs/AWA2/CoScaf-final-best-H.json --data data/awa2 \
+coscaf train --config configs/AWA2/CoScaf-no-anchor.json --data data/awa2 \
   --cache cache/awa2/train --development runs/awa2/validation \
   --output runs/awa2/model --device cuda:0
 ```
@@ -70,7 +71,7 @@ Prefix caches contain patch tokens, not the 768D vectors in `vit_features.mat`.
 ## Testing
 
 ```bash
-coscaf cache --config configs/AWA2/CoScaf-final-best-H.json --data data/awa2 \
+coscaf cache --config configs/AWA2/CoScaf-no-anchor.json --data data/awa2 \
   --image-root /data/AWA2/JPEGImages --role test --run runs/awa2/model \
   --output cache/awa2/test --device cuda:0
 

@@ -1,12 +1,19 @@
 # CoScaf-final-best-H configurations
 
-The four [dataset configurations](../configs/README.md) under `configs/` retain
-the existing JSON structure and record the parameters of the paper's highest-H
-single-seed CoScaf models **with TTA**.
+The original configurations are preserved under
+`configs/<dataset>/archive/CoScaf-final-best-H.json`. They record the parameters
+of the paper's highest-H single-seed CoScaf models **with TTA**.
 These are retrospective test-set maxima, not validation-selected seed averages.
 All metrics in each row below belong to the same H-selected run; CZSL is not
 replaced by a separate CZSL maximum. RetiRare-74 uses the code identifier
 `RetiRareV2`.
+
+The active [dataset configurations](../configs/README.md) are now named
+`CoScaf-no-anchor.json`. Source-training and TTA parameter anchor losses
+have been removed from the code and active configs.
+All other configured values are retained. This changes the optimization
+objective: the archived metrics below are not results for the modified recipe,
+which has not been evaluated on the benchmarks.
 
 | Dataset | Candidate | Final seed | K | Batch | Final epochs | H (%) | Same-run CZSL (%) |
 |---|---|---:|---:|---:|---:|---:|---:|
@@ -21,7 +28,7 @@ hashes. It is a provenance document, not a CLI configuration or checkpoint.
 Model hashes were read from the audited inference receipts; checkpoint bytes
 were not downloaded or rehashed for this configuration update.
 
-## Loss coefficients
+## Archived loss coefficients
 
 | Dataset | `source.anchor_weight` | `adaptation.anchor_weight` | `adaptation.topology_weight` |
 |---|---:|---:|---:|
@@ -30,11 +37,17 @@ were not downloaded or rehashed for this configuration update.
 | SUN | 0.7 | 0.3 | 0.0 |
 | RetiRare-74 | 0.2 | 1.0 | 0.0 |
 
-The two anchor losses are active in the archived best-H runs and remain
-unchanged. A zero penalty at initialization does not make an anchor inactive
-after parameter updates. The topology coefficient is made explicitly zero
-where the original configuration relied on its zero default. AWA2 retains
-its active coefficient of 0.25.
+The two anchor losses were active in the archived best-H runs. Their original
+values remain in the archived records only. The current source objective is
+class-balanced cross-entropy; TTA retains consistency, ranking, class/mode
+alignment, semantic relations and the configured topology term. AWA2's topology
+coefficient remains 0.25, and the other datasets retain 0.0.
+
+New checkpoints omit the four source-initialization buffers used by the deleted
+loss. The loader accepts old checkpoints by discarding exactly those four
+obsolete buffers while strictly validating the remaining model state. This
+preserves source-score restoration; retraining or rerunning TTA with the current
+code uses the modified objective, not the historical optimization trajectory.
 
 The legacy `order_weight` is not consumed by the active adaptation code.
 It was already zero in the archived AWA2 configuration and absent in the other
@@ -43,11 +56,11 @@ is not added to the runnable JSON files.
 
 ## Training protocol and current code support
 
-These JSON files map the archived model parameters to the public interface.
-**Replacing the configuration alone does not reproduce the complete archived
-experiment with the current public pipeline.** This update changes configuration
-and documentation only; it does not add a scheduler, checkpoint selection or
-a calibration-import path to the code.
+The archived JSON files map the original model parameters to the public
+interface. **Replacing a configuration alone does not reproduce the complete
+archived experiment with the current public pipeline.** In addition to the
+removed anchor losses, the public pipeline lacks the original scheduler,
+checkpoint-selection protocol and a calibration-import path.
 
 The archived protocol used development seed 7011, a 100-epoch cap, and patience
 5 on TUNE H after fitting that epoch's seen-class offset on CAL. Improvement
@@ -79,7 +92,7 @@ For RetiRare-74, `source.prior_temperature=0.01` is intentional: the archived
 ORIX `PortableData` execution path used the readout value 0.01. Its legacy
 `source_recipe.prior_temperature=0.25` field was not the effective override.
 
-No new training, inference or benchmark measurement was performed for this
-update. End-to-end numerical parity with the archived implementation remains
+No benchmark training or inference was performed for this update. End-to-end
+numerical parity with the archived implementation remains
 unverified. Earlier public configurations remain available in Git history at
 commit `024bc4b29c96b8ec350589b57c223ffb7894a3f9`.

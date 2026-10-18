@@ -68,7 +68,6 @@ def make_problem(variant="latent", engine="geometry_ot"):
         "ranking_weight": 0.5,
         "ranking_margin": 0.03,
         "hard_negative_neighbors": 2,
-        "anchor_weight": 0.1,
         "relation_weight": 0.2,
         "topology_weight": 0.25,
         "gradient_clip": 5.0,
