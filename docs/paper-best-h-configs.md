@@ -1,7 +1,8 @@
 # CoScaf-final-best-H configurations
 
-The four files in `configs/` retain the existing JSON structure and record the
-parameters of the paper's highest-H single-seed CoScaf models **with TTA**.
+The four [dataset configurations](../configs/README.md) under `configs/` retain
+the existing JSON structure and record the parameters of the paper's highest-H
+single-seed CoScaf models **with TTA**.
 These are retrospective test-set maxima, not validation-selected seed averages.
 All metrics in each row below belong to the same H-selected run; CZSL is not
 replaced by a separate CZSL maximum. RetiRare-74 uses the code identifier

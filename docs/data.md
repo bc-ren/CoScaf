@@ -6,9 +6,9 @@ Images, metadata, semantic vectors and pretrained weights are not included.
 
 | Dataset | Config | Semantics | Image size |
 |---|---|---|---|
-| AWA2 | `configs/awa2.json` | 85D, `att_splits.mat` | 384 × 384 |
-| CUB | `configs/cub.json` | 1024D, `sent_splits.mat` | 384 × 384 |
-| SUN | `configs/sun.json` | 102D, `att_splits.mat` | 384 × 384 |
+| AWA2 | `configs/AWA2/CoScaf-final-best-H.json` | 85D, `att_splits.mat` | 384 × 384 |
+| CUB | `configs/CUB/CoScaf-final-best-H.json` | 1024D, `sent_splits.mat` | 384 × 384 |
+| SUN | `configs/SUN/CoScaf-final-best-H.json` | 102D, `att_splits.mat` | 384 × 384 |
 
 Use the official proposed splits. The importer reads labels from `res101.mat`,
 not its visual features. Supply `images.json` as a list of image paths relative
@@ -43,8 +43,8 @@ are excluded from these roles.
 ## RetiRare-74
 
 The configuration and metadata use the existing identifier `RetiRareV2`:
-`configs/retirarev2.json`. Use the fixed 59-seen/15-unseen split, 3,428 training
-images, 1,972 test images and original five validation folds.
+`configs/RetiRare-74/CoScaf-final-best-H.json`. Use the fixed 59-seen/15-unseen
+split, 3,428 training images, 1,972 test images and original five validation folds.
 
 Obtain [RetiZero](https://github.com/LooKing9218/RetiZero) and its complete official
 checkpoint separately. Install its dependencies as directed by that repository,
@@ -60,7 +60,8 @@ coscaf prepare-retinal --metadata /data/retinal_metadata.npz \
   --output data/retirarev2
 ```
 
-Follow the README commands with `configs/retirarev2.json` and the retinal paths.
+Follow the README commands with `configs/RetiRare-74/CoScaf-final-best-H.json`
+and the retinal paths.
 Append the following arguments to every `cache`, `develop`, `train` and
 `evaluate` command:
 

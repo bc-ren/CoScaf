@@ -20,8 +20,18 @@ pip install -e .
 ```
 
 Data and pretrained weights are obtained separately. See [data setup](docs/data.md)
-for the input format and RetiZero installation. Keep the supplied configurations
-in `configs/`; CUB requires 1024D semantics from `sent_splits.mat`.
+for the input format and RetiZero installation. Hyperparameters are organized
+by dataset under [`configs/`](configs/README.md):
+
+```text
+configs/
+  AWA2/CoScaf-final-best-H.json
+  CUB/CoScaf-final-best-H.json
+  SUN/CoScaf-final-best-H.json
+  RetiRare-74/CoScaf-final-best-H.json
+```
+
+CUB requires 1024D semantics from `sent_splits.mat`.
 
 The supplied configurations now record the paper's **CoScaf-final-best-H**
 models with TTA. See [configuration records](docs/paper-best-h-configs.md)
@@ -40,14 +50,14 @@ coscaf prepare-natural --dataset AWA2 \
   --labels /data/AWA2/res101.mat --splits /data/AWA2/att_splits.mat \
   --images /data/AWA2/images.json --output data/awa2
 
-coscaf cache --config configs/awa2.json --data data/awa2 \
+coscaf cache --config configs/AWA2/CoScaf-final-best-H.json --data data/awa2 \
   --image-root /data/AWA2/JPEGImages --role train \
   --output cache/awa2/train --device cuda:0
 
-coscaf develop --config configs/awa2.json --data data/awa2 \
+coscaf develop --config configs/AWA2/CoScaf-final-best-H.json --data data/awa2 \
   --cache cache/awa2/train --output runs/awa2/validation --device cuda:0
 
-coscaf train --config configs/awa2.json --data data/awa2 \
+coscaf train --config configs/AWA2/CoScaf-final-best-H.json --data data/awa2 \
   --cache cache/awa2/train --development runs/awa2/validation \
   --output runs/awa2/model --device cuda:0
 ```
@@ -60,7 +70,7 @@ Prefix caches contain patch tokens, not the 768D vectors in `vit_features.mat`.
 ## Testing
 
 ```bash
-coscaf cache --config configs/awa2.json --data data/awa2 \
+coscaf cache --config configs/AWA2/CoScaf-final-best-H.json --data data/awa2 \
   --image-root /data/AWA2/JPEGImages --role test --run runs/awa2/model \
   --output cache/awa2/test --device cuda:0
 

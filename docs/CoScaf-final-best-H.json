@@ -78,7 +78,7 @@
         "tf32": false,
         "amp": false
       },
-      "config": "configs/awa2.json",
+      "config": "configs/AWA2/CoScaf-final-best-H.json",
       "config_sha256": "586b41a0f8ce4448ccf3648f450f9632c04727f13002838cd569d7c6118f37c9",
       "archived_artifact_hashes": {
         "source_model_sha256": "89d7f67e7b3fb0f9aff123303a7be720f0b9c1206d12b39cb3a559393b345aac",
@@ -180,7 +180,7 @@
         "tf32": false,
         "amp": false
       },
-      "config": "configs/cub.json",
+      "config": "configs/CUB/CoScaf-final-best-H.json",
       "config_sha256": "6c67b4ab0bc142c55715c3ade5d59d078e5ec7d2f946d03fa4cff838a870518b",
       "archived_artifact_hashes": {
         "source_model_sha256": "1098dd5aeb4c02eeec04df2e3db2e94ea614ff19a18de12c67aa03d9ddfc86c5",
@@ -282,7 +282,7 @@
         "tf32": false,
         "amp": false
       },
-      "config": "configs/sun.json",
+      "config": "configs/SUN/CoScaf-final-best-H.json",
       "config_sha256": "5a43e02dcdb4e3bff7bb6934fb43178c735dd7bae84d67c3e0a05adcf82d05c8",
       "archived_artifact_hashes": {
         "source_model_sha256": "6243f1021df82d8b28d17956567d69e81382deb9fe751081b0d5f0f93368a9ba",
@@ -389,7 +389,7 @@
         "tf32": false,
         "amp": false
       },
-      "config": "configs/retirarev2.json",
+      "config": "configs/RetiRare-74/CoScaf-final-best-H.json",
       "config_sha256": "a284fce0bc67c8ddb6ff488154d6e1ed585aea28e34e80b4ceaf00994e8836d9",
       "archived_artifact_hashes": {
         "source_model_sha256": "f916497ef1c2ba882ee40980d5cf5517acb541783e1795976aedcd3b1a3096b2",
