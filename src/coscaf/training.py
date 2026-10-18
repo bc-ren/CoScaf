@@ -10,6 +10,7 @@ import torch
 from torch.nn import functional as F
 
 from .initialization import TargetBank, fit_transform, transform, unit_rows
+from .io import cpu_state
 from .model import GENERATOR, CoScafModel, CoScafReadout, _BaseReadout
 
 
@@ -130,7 +131,31 @@ def source_loss(scores, labels, weights, config):
     return (classification * weights[labels]).mean()
 
 
-def train_fit(model, reader, fit_indices, labels, config, seed, device="cpu", progress=None):
+def epoch_multiplier(policy, epoch):
+    """Return the registered multiplier for a one-based source epoch."""
+    if epoch < 1:
+        raise ValueError("Source epochs are one-based")
+    if policy in (None, "constant", "constant_original"):
+        return 1.0
+    if policy == "exponential_095":
+        return 0.95 ** (epoch - 1)
+    raise ValueError(f"Unknown source epoch decay: {policy}")
+
+
+def train_fit(
+    model,
+    reader,
+    fit_indices,
+    labels,
+    config,
+    seed,
+    device="cpu",
+    progress=None,
+    *,
+    validation=None,
+    patience=None,
+    improvement_tolerance=1e-12,
+):
     """Train a fresh source model; ``reader(indices)`` returns prefix tokens.
 
     Call ``make_model`` immediately beforehand. No task checkpoints are read.
@@ -147,15 +172,37 @@ def train_fit(model, reader, fit_indices, labels, config, seed, device="cpu", pr
     weights = torch.tensor(
         len(fit) / (len(classes) * counts[classes]), dtype=torch.float32, device=device
     )
+    epochs = config["epochs"]
+    if isinstance(epochs, bool) or int(epochs) != epochs or epochs < 1:
+        raise ValueError("Source epochs must be a positive integer")
+    if validation is not None:
+        if (
+            patience is None
+            or isinstance(patience, bool)
+            or int(patience) != patience
+            or patience < 1
+        ):
+            raise ValueError("Validation selection requires positive integer patience")
+        if not np.isfinite(improvement_tolerance) or improvement_tolerance < 0:
+            raise ValueError("Improvement tolerance must be finite and nonnegative")
+    elif patience is not None:
+        raise ValueError("Patience requires an epoch validation callback")
+    policy = config.get("epoch_decay", "constant")
+    epoch_multiplier(policy, 1)
     optimizer = make_optimizer(model, config)
+    initial_lrs = [group["lr"] for group in optimizer.param_groups]
     model.eval()
     history = []
     updates = 0
+    best_h, best_epoch, bad_epochs, best_state = -float("inf"), None, 0, None
     start = time.time()
     micro = config.get("micro_batch_size", config["batch_size"])
     if micro < 1 or config["batch_size"] < 1:
         raise ValueError("Batch sizes must be positive")
-    for epoch in range(1, config["epochs"] + 1):
+    for epoch in range(1, int(epochs) + 1):
+        factor = epoch_multiplier(policy, epoch)
+        for group, initial_lr in zip(optimizer.param_groups, initial_lrs):
+            group["lr"] = initial_lr * factor
         exposure = np.zeros(len(labels), dtype=np.int32)
         losses = []
         for indices in schedule(fit, seed, epoch, config["batch_size"]):
@@ -182,14 +229,41 @@ def train_fit(model, reader, fit_indices, labels, config, seed, device="cpu", pr
             losses.append(value)
         if not np.all(exposure[fit] == 1) or exposure.sum() != len(fit):
             raise RuntimeError("Each source image must occur exactly once per epoch")
-        history.append(
-            {
-                "epoch": epoch,
-                "loss": float(np.mean(losses)),
-                "updates": updates,
-                "seconds": time.time() - start,
-            }
-        )
+        record = {
+            "epoch": epoch,
+            "loss": float(np.mean(losses)),
+            "updates": updates,
+            "seconds": time.time() - start,
+            "lr_multiplier": factor,
+            "learning_rates": {
+                group.get("name", str(i)): group["lr"]
+                for i, group in enumerate(optimizer.param_groups)
+            },
+        }
+        if validation is not None:
+            metrics = validation(model, epoch)
+            h = float(metrics["H"])
+            if not np.isfinite(h):
+                raise FloatingPointError("Nonfinite development selection H")
+            improved = h > best_h + improvement_tolerance
+            if improved:
+                best_h, best_epoch, bad_epochs = h, epoch, 0
+                best_state = cpu_state(model.trainable_state())
+            else:
+                bad_epochs += 1
+            record.update(
+                validation=metrics,
+                selected=improved,
+                best_epoch=best_epoch,
+                best_H=best_h,
+                epochs_without_improvement=bad_epochs,
+            )
+        history.append(record)
         if progress is not None:
             progress(history)
+        if validation is not None and bad_epochs >= patience:
+            break
+    if validation is not None:
+        # Subsequent unsuccessful epochs must not become the saved DEV model.
+        model.load_trainable_state(best_state)
     return model, history

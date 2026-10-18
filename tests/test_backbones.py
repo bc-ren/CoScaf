@@ -1,8 +1,10 @@
 """Exercise the installed Transformers ViT API without downloading weights."""
 
+from types import SimpleNamespace
+
 import pytest
 import torch
-from transformers import ViTConfig, ViTModel
+from transformers import ViTConfig, ViTImageProcessor, ViTModel
 
 from coscaf.backbones import VIT_WEIGHTS_SHA256, VisualPromptSuffix, load_vit, vit_prefix
 
@@ -62,3 +64,26 @@ def test_local_snapshot_hash_guard_precedes_model_loading(tmp_path):
     (tmp_path / "model.safetensors").write_bytes(b"not-the-pinned-backbone")
     with pytest.raises(ValueError, match="SHA-256"):
         load_vit(snapshot=tmp_path, local_files_only=True)
+
+
+@pytest.mark.parametrize("container", [list, tuple])
+@pytest.mark.parametrize("valid", [True, False])
+def test_processor_normalization_accepts_sequence_types_not_wrong_values(
+    tmp_path, monkeypatch, container, valid
+):
+    (tmp_path / "model.safetensors").write_bytes(b"mock weights")
+    model = torch.nn.Linear(1, 1)
+    model.config = SimpleNamespace(hidden_size=768, num_hidden_layers=12, patch_size=16)
+    processor = SimpleNamespace(
+        image_mean=container([0.5, 0.5, 0.5]),
+        image_std=container([0.5, 0.5, 0.5 if valid else 0.4]),
+    )
+    monkeypatch.setattr("coscaf.backbones.file_sha256", lambda path: VIT_WEIGHTS_SHA256)
+    monkeypatch.setattr(ViTModel, "from_pretrained", lambda *args, **kwargs: (model, {}))
+    monkeypatch.setattr(ViTImageProcessor, "from_pretrained", lambda *args, **kwargs: processor)
+    if valid:
+        loaded, returned_processor = load_vit(tmp_path, local_files_only=True)
+        assert loaded is model and returned_processor is processor
+    else:
+        with pytest.raises(ValueError, match="pixel normalization"):
+            load_vit(tmp_path, local_files_only=True)

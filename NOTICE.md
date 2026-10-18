@@ -1,15 +1,19 @@
-# Third-party assets and attribution
+# Assets and attribution
 
-This repository does not bundle the following third-party assets:
+CoScaf source code is distributed separately from model weights and image caches.
+The release's numeric split/semantic metadata retains the original dataset class
+and sample ordering. Original dataset images are not included. Dataset access
+and use remain subject to the respective providers' terms.
 
-- Google [ViT-Base/16](https://huggingface.co/google/vit-base-patch16-224-in21k)
-  pretrained weights, available separately under upstream terms.
-- [RetiZero](https://github.com/LooKing9218/RetiZero) source, weights, or language
-  model assets. Obtain them separately under upstream terms; this repository
-  grants no redistribution rights to those assets.
-- AWA2, CUB, SUN, or RetiRareV2 images, annotations, or semantic matrices. Access
-  and use remain subject to the respective providers' terms.
+The companion asset package uses these upstream components:
 
-PyTorch, Transformers, NumPy, SciPy, and Pillow are installed dependencies;
-their licenses and attribution requirements remain applicable. Preserve all
-third-party copyright and license notices when integrating external code.
+- Google [ViT-Base/16](https://huggingface.co/google/vit-base-patch16-224-in21k),
+  revision `b4569560a39a0f1af58e3ddaf17facf20ab919b0`.
+- [RetiZero](https://github.com/LooKing9218/RetiZero), revision
+  `d72aadc692fbe33b182c79711bccb397edffb419`, with its official checkpoint and
+  ClinicalBERT configuration/tokenizer. Preserve the upstream notices included
+  with that source. CoScaf does not grant additional rights to upstream assets.
+
+PyTorch, Transformers, NumPy, SciPy and Pillow are installed dependencies and
+retain their respective licenses. Cached retinal features use anonymous sample
+indices; private source-file and patient mappings are excluded.

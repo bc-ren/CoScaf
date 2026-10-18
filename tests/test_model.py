@@ -149,9 +149,7 @@ def test_legacy_checkpoint_buffers_do_not_change_restored_scores(variant):
     for name in GENERATOR:
         legacy["head"]["initial_" + name] = torch.zeros_like(state["head"][name])
     before = copy.deepcopy(legacy)
-    restored = build_from_state(
-        legacy, {"routing": variant, "local_weight": 0.25}, ToySuffix
-    )
+    restored = build_from_state(legacy, {"routing": variant, "local_weight": 0.25}, ToySuffix)
     raw, classes = torch.randn(2, 16, 32), torch.arange(6)
     torch.testing.assert_close(model(raw, classes), restored(raw, classes), atol=0, rtol=0)
     assert set(restored.trainable_state()["head"]) == set(state["head"])

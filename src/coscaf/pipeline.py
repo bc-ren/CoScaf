@@ -1,6 +1,8 @@
 """Validation calibration, seen-class training, and test-time evaluation."""
 
+import copy
 import hashlib
+import math
 from pathlib import Path
 
 import numpy as np
@@ -150,7 +152,73 @@ def _adapt(model, cache, classes, seen, gamma, config, device):
     )
 
 
-def _fresh_fit(bundle, reader, fit, means, config, suffix_factory, device):
+def _fold_path(data_dir, fold_id):
+    """Prefer the preserved original NPZ fold when it is available."""
+    folder = Path(data_dir) / "folds"
+    for extension in ("npz", "json"):
+        path = folder / f"fold_{fold_id}.{extension}"
+        if path.is_file():
+            return path
+    raise FileNotFoundError(f"Missing development fold {fold_id} in {folder}")
+
+
+def _development_settings(config):
+    settings = config.get("development")
+    if settings is None:
+        return None
+    settings = {
+        "seed": settings["seed"],
+        "max_epochs": settings.get("max_epochs", 100),
+        "patience": settings.get("patience", 5),
+        "improvement_tolerance": settings.get("improvement_tolerance", 1e-12),
+    }
+    for key in ("seed", "max_epochs", "patience"):
+        value = settings[key]
+        if isinstance(value, bool) or int(value) != value or value < (0 if key == "seed" else 1):
+            raise ValueError(f"Invalid development {key}")
+        settings[key] = int(value)
+    tolerance = settings["improvement_tolerance"]
+    if not np.isfinite(tolerance) or tolerance < 0:
+        raise ValueError("Invalid development improvement tolerance")
+    return settings
+
+
+def _final_fit_config(config, calibration):
+    result = copy.deepcopy(config)
+    settings = _development_settings(config)
+    if settings is None:
+        return result
+    selection = calibration.get("development_selection", {})
+    best = selection.get("best_epochs_by_fold", {})
+    if set(best) != {str(f) for f in config["folds"]} or not best:
+        raise ValueError("Missing current development best-epoch selections")
+    if selection.get("settings") != settings:
+        raise ValueError("Development selection protocol differs from configuration")
+    epochs = list(best.values())
+    if any(
+        isinstance(e, bool) or int(e) != e or not 1 <= e <= settings["max_epochs"] for e in epochs
+    ):
+        raise ValueError("Invalid selected development epoch")
+    horizon = int(math.ceil(float(np.median(epochs))))
+    final = calibration.get("final_training", {})
+    if final.get("epochs") != horizon or final.get("seed") != config["seed"]:
+        raise ValueError("Final training must use the frozen current-DEV horizon and final seed")
+    result["source"]["epochs"] = horizon
+    return result
+
+
+def _fresh_fit(
+    bundle,
+    reader,
+    fit,
+    means,
+    config,
+    suffix_factory,
+    device,
+    *,
+    validation=None,
+    selection=None,
+):
     bundle.validate_fit(fit)
     # Initialization never reads a previously trained task checkpoint.
     model = make_model(
@@ -162,13 +230,39 @@ def _fresh_fit(bundle, reader, fit, means, config, suffix_factory, device):
         suffix_factory,
         device,
     )
-    return train_fit(model, reader, fit, bundle.labels, config["source"], config["seed"], device)
+    return train_fit(
+        model,
+        reader,
+        fit,
+        bundle.labels,
+        config["source"],
+        config["seed"],
+        device,
+        validation=validation,
+        patience=None if selection is None else selection["patience"],
+        improvement_tolerance=1e-12 if selection is None else selection["improvement_tolerance"],
+    )
+
+
+def _development_pack(model, reader, bundle, fold, batch, device):
+    pack = {"classes": bundle.seen, "seen": fold["pseudo_seen"]}
+    for role in ("cal", "tune"):
+        z = score(model, reader, fold[role], bundle.seen, batch, device)
+        pack[role + "_base"] = z
+        pack[role + "_delta"] = np.zeros_like(z)
+        pack[role + "_y"] = bundle.labels[fold[role]]
+    return pack
 
 
 def develop(config, data_dir, cache_dir, output, suffix_factory, device="cpu"):
     """Fit independent seen-only replicas, then freeze source/TTA calibration."""
     bundle = DatasetBundle.load(data_dir)
     _check_config(bundle, config)
+    selection = _development_settings(config)
+    fit_config = copy.deepcopy(config)
+    if selection is not None:
+        fit_config["seed"] = selection["seed"]
+        fit_config["source"]["epochs"] = selection["max_epochs"]
     cache = PrefixCache(cache_dir, bundle, "train")
     _check_cache(cache, config)
     suffix_factory = _checked_factory(suffix_factory, cache)
@@ -178,12 +272,9 @@ def develop(config, data_dir, cache_dir, output, suffix_factory, device="cpu"):
     write_json(output / "config.json", config)
     write_json(output / "environment.json", environment())
     batch = config["source"]["score_batch_size"]
-    means = unprompted_means(suffix_factory, read, bundle.train, batch, device)
-    lookup = {int(index): position for position, index in enumerate(bundle.train)}
     packs = []
-    folds = [
-        load_fold(bundle, Path(data_dir) / "folds" / f"fold_{i}.json") for i in config["folds"]
-    ]
+    fold_paths = [_fold_path(data_dir, i) for i in config["folds"]]
+    folds = [load_fold(bundle, path) for path in fold_paths]
     all_cal = np.concatenate([fold["cal"] for fold in folds])
     all_tune = np.concatenate([fold["tune"] for fold in folds])
     if np.intersect1d(all_cal, all_tune).size:
@@ -193,30 +284,43 @@ def develop(config, data_dir, cache_dir, output, suffix_factory, device="cpu"):
         and np.intersect1d(bundle.groups[all_cal], bundle.groups[all_tune]).size
     ):
         raise ValueError("A group crosses pooled calibration and selection roles")
+    means = unprompted_means(suffix_factory, read, bundle.train, batch, device)
+    lookup = {int(index): position for position, index in enumerate(bundle.train)}
     source_hashes = {}
+    best_epochs = {}
     for fold_id, fold in zip(config["folds"], folds):
         destination = output / f"fold_{fold_id}"
         destination.mkdir()
+
+        def validate_epoch(model, epoch):
+            pack = _development_pack(model, read, bundle, fold, batch, device)
+            own_calibration, _ = joint_calibration([pack], 0.0)
+            metrics = evaluate_folds([pack], 0.0, own_calibration)
+            return {
+                "H": metrics["H"],
+                "calibration": own_calibration,
+                "selection_role": "TUNE",
+                "calibration_role": "CAL",
+            }
+
         model, history = _fresh_fit(
             bundle,
             read,
             fold["fit"],
             means[[lookup[int(i)] for i in fold["fit"]]],
-            config,
+            fit_config,
             suffix_factory,
             device,
+            validation=None if selection is None else validate_epoch,
+            selection=selection,
         )
+        best_epochs[str(fold_id)] = history[-1].get("best_epoch", history[-1]["epoch"])
         torch.save(cpu_state(model.trainable_state()), destination / "model.pt")
         write_json(destination / "history.json", history)
-        pack = {"classes": bundle.seen, "seen": fold["pseudo_seen"]}
-        for role in ("cal", "tune"):
-            z = score(model, read, fold[role], bundle.seen, batch, device)
-            pack[role + "_base"] = z
-            pack[role + "_delta"] = np.zeros_like(z)
-            pack[role + "_y"] = bundle.labels[fold[role]]
+        pack = _development_pack(model, read, bundle, fold, batch, device)
         np.savez_compressed(destination / "source_scores.npz", **pack)
         packs.append(pack)
-        for name in ("model.pt", "source_scores.npz"):
+        for name in ("model.pt", "source_scores.npz", "history.json"):
             source_hashes[f"fold_{fold_id}/{name}"] = sha256(destination / name)
         del model
     source_calibration, source_curve = joint_calibration(packs, 0.0)
@@ -269,9 +373,8 @@ def develop(config, data_dir, cache_dir, output, suffix_factory, device="cpu"):
         "config_sha256": fingerprint(config),
         "metadata_sha256": sha256(Path(data_dir) / "metadata.npz"),
         "training_cache_sha256": fingerprint(cache.manifest),
-        "fold_sha256": {
-            str(f): sha256(Path(data_dir) / "folds" / f"fold_{f}.json") for f in config["folds"]
-        },
+        "fold_sha256": {str(f): sha256(path) for f, path in zip(config["folds"], fold_paths)},
+        "fold_files": {str(f): path.name for f, path in zip(config["folds"], fold_paths)},
         "source_calibration": source_calibration,
         "adapted_calibration": calibration,
         "source_tune_metrics": source_metrics,
@@ -279,6 +382,19 @@ def develop(config, data_dir, cache_dir, output, suffix_factory, device="cpu"):
         "official_test_used": False,
         "files": source_hashes,
     }
+    if selection is not None:
+        frozen["development_selection"] = {
+            "settings": selection,
+            "metric": "source_TUNE_H_with_own_epoch_CAL",
+            "best_epochs_by_fold": best_epochs,
+            "selected_weights_restored": True,
+            "official_test_used": False,
+        }
+        frozen["final_training"] = {
+            "seed": config["seed"],
+            "epochs": int(math.ceil(float(np.median(list(best_epochs.values()))))),
+            "epoch_rule": "ceil(median(current_no_anchor_DEV_best_epochs))",
+        }
     write_json(output / "calibration.json", frozen)
     return frozen
 
@@ -294,7 +410,10 @@ def train(config, data_dir, cache_dir, development, output, suffix_factory, devi
         raise ValueError("Dataset metadata differs from development")
     verify_files(development, calibration["files"])
     for fold_id, expected in calibration["fold_sha256"].items():
-        if sha256(Path(data_dir) / "folds" / f"fold_{fold_id}.json") != expected:
+        filename = calibration.get("fold_files", {}).get(fold_id, f"fold_{fold_id}.json")
+        if filename not in (f"fold_{fold_id}.npz", f"fold_{fold_id}.json"):
+            raise ValueError("Invalid frozen development fold filename")
+        if sha256(Path(data_dir) / "folds" / filename) != expected:
             raise ValueError("Development fold membership has changed")
     cache = PrefixCache(cache_dir, bundle, "train")
     _check_cache(cache, config)
@@ -307,7 +426,10 @@ def train(config, data_dir, cache_dir, development, output, suffix_factory, devi
     means = unprompted_means(
         suffix_factory, read, bundle.train, config["source"]["score_batch_size"], device
     )
-    model, history = _fresh_fit(bundle, read, bundle.train, means, config, suffix_factory, device)
+    fit_config = _final_fit_config(config, calibration)
+    model, history = _fresh_fit(
+        bundle, read, bundle.train, means, fit_config, suffix_factory, device
+    )
     torch.save(cpu_state(model.trainable_state()), output / "model.pt")
     write_json(output / "config.json", config)
     write_json(output / "history.json", history)
@@ -320,6 +442,9 @@ def train(config, data_dir, cache_dir, development, output, suffix_factory, devi
             name: sha256(output / name) for name in ("model.pt", "config.json", "calibration.json")
         },
         "training": "fresh initialization; one optimizer trajectory",
+        "effective_seed": fit_config["seed"],
+        "effective_epochs": fit_config["source"]["epochs"],
+        "epoch_decay": fit_config["source"].get("epoch_decay", "constant"),
         "official_test_used": False,
     }
     write_json(output / "freeze.json", freeze)

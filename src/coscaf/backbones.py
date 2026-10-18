@@ -144,7 +144,7 @@ def load_vit(snapshot=None, device="cpu", local_files_only=False):
         raise ValueError("Expected ViT-Base/16")
     model = model.eval().requires_grad_(False).to(device)
     processor = ViTImageProcessor.from_pretrained(snapshot, local_files_only=True)
-    if processor.image_mean != [0.5] * 3 or processor.image_std != [0.5] * 3:
+    if tuple(processor.image_mean) != (0.5,) * 3 or tuple(processor.image_std) != (0.5,) * 3:
         raise ValueError("Unexpected ViT pixel normalization")
     model.coscaf_provenance = {
         "model_id": VIT_ID,

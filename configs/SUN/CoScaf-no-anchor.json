@@ -22,7 +22,8 @@
     "modes": 8,
     "micro_batch_size": 2,
     "routing": "latent",
-    "prior_temperature": 0.5
+    "prior_temperature": 0.5,
+    "epoch_decay": "constant"
   },
   "adaptation": {
     "engine": "sun_soft_ot",
@@ -68,5 +69,11 @@
     0,
     10
   ],
-  "adaptation_batch": 16
+  "adaptation_batch": 16,
+  "development": {
+    "seed": 7011,
+    "max_epochs": 100,
+    "patience": 5,
+    "improvement_tolerance": 1e-12
+  }
 }

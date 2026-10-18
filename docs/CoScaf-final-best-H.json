@@ -1,6 +1,6 @@
 {
   "name": "CoScaf-final-best-H",
-  "format_version": 1,
+  "format_version": 2,
   "date": "2026-10-18",
   "compared_github_commit": "024bc4b29c96b8ec350589b57c223ffb7894a3f9",
   "scope": "Four paper CoScaf-with-TTA highest-H single-seed records. Accompanying metrics come from the same H run, not separate CZSL maxima.",
@@ -103,21 +103,21 @@
         "status": "No order loss is computed by the active archived or public adaptation path. The archived AWA2 value is 0; other configurations omit it. Not added as a nonfunctional public config option."
       },
       "compatibility_limits": [
-        "Public training.py has no epoch LR scheduler; the original fit used initial_lr * 0.95 ** (epoch - 1). A JSON key alone is silently ineffective.",
-        "Current public develop/train uses one seed and fixed source.epochs for both DEV and FINAL; the original protocol used DEV seed 7011, per-fold early stopping and a separately seeded fresh FINAL fit.",
-        "The public pipeline derives calibration from its own development output and checks exact config identity; it does not consume the frozen source/TTA calibration exported in this record.",
-        "Data membership, duplicate exclusions, cached FP32 features, backbone weights and preprocessing must match the archived run; JSON values alone do not establish this parity.",
-        "Public-code parameter mapping is provided for comparison, not a claim of bitwise parity with the archived implementation."
+        "The active no-anchor objective differs from the historical objective; no new benchmark result is claimed.",
+        "Historical checkpoints use separate saved-generator replay with original frozen CAL offsets. New training uses its own DEV calibration and ceil-median horizon.",
+        "Architecture/configuration identity alone does not establish complete numerical replay; see docs/release-validation.json for measured coverage."
       ],
       "current_configuration": {
         "config": "configs/AWA2/CoScaf-no-anchor.json",
-        "config_sha256": "245973faff8743e96052f3142dfecc603aeab1c19e49493550451a2e995cfc99",
+        "config_sha256": "655378eb810baa27c0ee49ae385c6b6559181f03ab187224eee0090f1cc3fe0a",
         "removed_parameters": [
           "source.anchor_weight",
           "adaptation.anchor_weight"
         ],
         "archived_metrics_apply": false,
-        "benchmark_results": null
+        "benchmark_results": null,
+        "epoch_schedule_implemented": true,
+        "development_selection_implemented": true
       }
     },
     "CUB": {
@@ -215,22 +215,24 @@
         "status": "No order loss is computed by the active archived or public adaptation path. The archived AWA2 value is 0; other configurations omit it. Not added as a nonfunctional public config option."
       },
       "compatibility_limits": [
-        "Public training.py has no epoch LR scheduler; the original fit used initial_lr * 0.95 ** (epoch - 1). A JSON key alone is silently ineffective.",
-        "Current public develop/train uses one seed and fixed source.epochs for both DEV and FINAL; the original protocol used DEV seed 7011, per-fold early stopping and a separately seeded fresh FINAL fit.",
-        "The public pipeline derives calibration from its own development output and checks exact config identity; it does not consume the frozen source/TTA calibration exported in this record.",
-        "Data membership, duplicate exclusions, cached FP32 features, backbone weights and preprocessing must match the archived run; JSON values alone do not establish this parity.",
-        "Public-code parameter mapping is provided for comparison, not a claim of bitwise parity with the archived implementation."
+        "The active no-anchor objective differs from the historical objective; no new benchmark result is claimed.",
+        "Historical checkpoints use separate saved-generator replay with original frozen CAL offsets. New training uses its own DEV calibration and ceil-median horizon.",
+        "Architecture/configuration identity alone does not establish complete numerical replay; see docs/release-validation.json for measured coverage."
       ],
       "current_configuration": {
         "config": "configs/CUB/CoScaf-no-anchor.json",
-        "config_sha256": "0229ed10360d31c094584e50e5d934ba2795ea8d9c6a5139e1bcd71c707c5421",
+        "config_sha256": "0b1f180eced3a659040f3d4e1669de625adb57a52305135baac101cb41ff247d",
         "removed_parameters": [
           "source.anchor_weight",
           "adaptation.anchor_weight"
         ],
         "archived_metrics_apply": false,
-        "benchmark_results": null
-      }
+        "benchmark_results": null,
+        "epoch_schedule_implemented": true,
+        "development_selection_implemented": true
+      },
+      "replay_manifest": "configs/CUB/historical-replay.json",
+      "checkpoint_bytes_sha256_verified_locally": true
     },
     "SUN": {
       "record_id": "B/SUN/tta/b032_p08/7033",
@@ -327,20 +329,21 @@
         "status": "No order loss is computed by the active archived or public adaptation path. The archived AWA2 value is 0; other configurations omit it. Not added as a nonfunctional public config option."
       },
       "compatibility_limits": [
-        "Current public develop/train uses one seed and fixed source.epochs for both DEV and FINAL; the original protocol used DEV seed 7011, per-fold early stopping and a separately seeded fresh FINAL fit.",
-        "The public pipeline derives calibration from its own development output and checks exact config identity; it does not consume the frozen source/TTA calibration exported in this record.",
-        "Data membership, duplicate exclusions, cached FP32 features, backbone weights and preprocessing must match the archived run; JSON values alone do not establish this parity.",
-        "Public-code parameter mapping is provided for comparison, not a claim of bitwise parity with the archived implementation."
+        "The active no-anchor objective differs from the historical objective; no new benchmark result is claimed.",
+        "Historical checkpoints use separate saved-generator replay with original frozen CAL offsets. New training uses its own DEV calibration and ceil-median horizon.",
+        "Architecture/configuration identity alone does not establish complete numerical replay; see docs/release-validation.json for measured coverage."
       ],
       "current_configuration": {
         "config": "configs/SUN/CoScaf-no-anchor.json",
-        "config_sha256": "22c68413080dcaa4a3510c802a31bb0355a7498d80babbd923f534a0c3331eb8",
+        "config_sha256": "502366f57b7b0bf4ac81ab9c3fff03150e22bd51816551f18e2c21935827dcaf",
         "removed_parameters": [
           "source.anchor_weight",
           "adaptation.anchor_weight"
         ],
         "archived_metrics_apply": false,
-        "benchmark_results": null
+        "benchmark_results": null,
+        "epoch_schedule_implemented": true,
+        "development_selection_implemented": true
       }
     },
     "RetiRareV2": {
@@ -445,21 +448,21 @@
         "status": "No order loss is computed by the active archived or public adaptation path. The archived AWA2 value is 0; other configurations omit it. Not added as a nonfunctional public config option."
       },
       "compatibility_limits": [
-        "Public training.py has no epoch LR scheduler; the original fit used initial_lr * 0.95 ** (epoch - 1). A JSON key alone is silently ineffective.",
-        "Current public develop/train uses one seed and fixed source.epochs for both DEV and FINAL; the original protocol used DEV seed 7011, per-fold early stopping and a separately seeded fresh FINAL fit.",
-        "The public pipeline derives calibration from its own development output and checks exact config identity; it does not consume the frozen source/TTA calibration exported in this record.",
-        "Data membership, duplicate exclusions, cached FP32 features, backbone weights and preprocessing must match the archived run; JSON values alone do not establish this parity.",
-        "Public-code parameter mapping is provided for comparison, not a claim of bitwise parity with the archived implementation."
+        "The active no-anchor objective differs from the historical objective; no new benchmark result is claimed.",
+        "Historical checkpoints use separate saved-generator replay with original frozen CAL offsets. New training uses its own DEV calibration and ceil-median horizon.",
+        "Architecture/configuration identity alone does not establish complete numerical replay; see docs/release-validation.json for measured coverage."
       ],
       "current_configuration": {
         "config": "configs/RetiRare-74/CoScaf-no-anchor.json",
-        "config_sha256": "d5eff64c9bac5f2bf254e4d611ca2800a794efdc13a8d59447aa28d4cd1218d2",
+        "config_sha256": "fedc3e013ac6668356816d9fcf019f90147573186ed6aa4ee20a18eb5e2edab0",
         "removed_parameters": [
           "source.anchor_weight",
           "adaptation.anchor_weight"
         ],
         "archived_metrics_apply": false,
-        "benchmark_results": null
+        "benchmark_results": null,
+        "epoch_schedule_implemented": true,
+        "development_selection_implemented": true
       }
     }
   },
@@ -467,6 +470,6 @@
     "change": "Source-training and TTA parameter anchor losses removed.",
     "archived_config_commit": "32b1950a888a53f4473646964afcd4411c872d00",
     "benchmark_results_for_modified_recipe": null,
-    "checkpoint_compatibility": "Legacy source weights can be restored; rerunning training or TTA uses the modified objective, not the archived trajectory."
+    "checkpoint_compatibility": "Historical source and saved adapted generators load strictly in a separate replay path without an optimizer. New training/TTA remain no-anchor."
   }
 }

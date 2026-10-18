@@ -45,3 +45,6 @@ venv/
 *.pem
 *.key
 *.log
+
+# Original numeric split/semantic metadata intentionally released.
+!data_splits/**/*.npz

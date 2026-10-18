@@ -7,6 +7,7 @@ import pytest
 from scipy.io import savemat
 
 from coscaf.data import DatasetBundle, PrefixCache, load_fold, validate_fold
+from coscaf.io import sha256
 from coscaf.preparation import (
     import_natural,
     import_retinal,
@@ -189,3 +190,195 @@ def test_image_paths_must_be_relative(bundle):
     (bundle.root / "images.json").write_text(json.dumps(["../image.jpg"] * len(bundle.labels)))
     with pytest.raises(ValueError, match="relative"):
         DatasetBundle.load(bundle.root)
+
+
+def orix_metadata():
+    arrays = metadata()
+    # Official rows are interleaved rather than grouped by seen/unseen class.
+    arrays["test"] = np.r_[
+        arrays.pop("test_unseen")[:4], arrays.pop("test_seen"), np.arange(64, 80)
+    ]
+    arrays["seen"], arrays["unseen"] = np.array([2, 0, 1]), np.array([3])
+    arrays["classes"] = arrays.pop("class_names")
+    return arrays
+
+
+def test_orix_metadata_preserves_original_test_order_and_class_ids(tmp_path):
+    arrays = orix_metadata()
+    np.savez_compressed(tmp_path / "metadata.npz", **arrays)
+    bundle = DatasetBundle.load(tmp_path)
+    np.testing.assert_array_equal(bundle.test, arrays["test"])
+    np.testing.assert_array_equal(bundle.labels, arrays["labels"])
+    np.testing.assert_array_equal(bundle.class_names, arrays["classes"])
+    np.testing.assert_array_equal(bundle.test_seen, arrays["test"][4:16])
+    np.testing.assert_array_equal(bundle.test_unseen, np.r_[np.arange(60, 64), np.arange(64, 80)])
+    # Non-string classes are not mistaken for class names.
+    arrays["classes"] = np.arange(4)
+    np.savez_compressed(tmp_path / "metadata.npz", **arrays)
+    assert DatasetBundle.load(tmp_path).class_names is None
+
+
+@pytest.mark.parametrize(
+    "change,match",
+    [
+        (lambda a: a.update(test=np.r_[a["test"], 0]), "disjoint"),
+        (lambda a: a.update(test=np.r_[a["test"], a["test"][0]]), "duplicate"),
+        (lambda a: a.update(test=np.array([80])), "out-of-range"),
+        (lambda a: a.update(unseen=np.array([2, 3])), "partition"),
+        (lambda a: a.update(seen=np.array([0, 1, 3]), unseen=np.array([2])), "class IDs|overlap"),
+        (lambda a: a.pop("seen"), "explicit seen/unseen"),
+        (lambda a: a.update(test_seen=np.array([16])), "membership"),
+    ],
+)
+def test_orix_metadata_rejects_conflicting_or_invalid_splits(tmp_path, change, match):
+    arrays = orix_metadata()
+    change(arrays)
+    np.savez_compressed(tmp_path / "metadata.npz", **arrays)
+    with pytest.raises(ValueError, match=match):
+        DatasetBundle.load(tmp_path)
+
+
+def test_combined_test_field_is_preserved_with_public_split_fields(tmp_path):
+    arrays = metadata()
+    arrays["test"] = np.r_[arrays["test_unseen"], arrays["test_seen"]][::-1]
+    np.savez_compressed(tmp_path / "metadata.npz", **arrays)
+    np.testing.assert_array_equal(DatasetBundle.load(tmp_path).test, arrays["test"])
+    arrays["test"] = arrays["test"][1:]
+    np.savez_compressed(tmp_path / "metadata.npz", **arrays)
+    with pytest.raises(ValueError, match="membership"):
+        DatasetBundle.load(tmp_path)
+
+
+def test_npz_folds_use_original_indices_and_reject_leakage(bundle, tmp_path):
+    original = make_development_folds(bundle, 3)[0]
+    path = tmp_path / "fold_0.npz"
+    np.savez_compressed(path, **original)
+    loaded = load_fold(bundle, path)
+    for key, value in original.items():
+        np.testing.assert_array_equal(loaded[key], value)
+    changed = {**original, "cal": np.r_[original["cal"], bundle.test[0]]}
+    np.savez_compressed(path, **changed)
+    with pytest.raises(ValueError, match="Official test"):
+        load_fold(bundle, path)
+    changed = {**original, "cal": np.r_[original["cal"], original["fit"][0]]}
+    np.savez_compressed(path, **changed)
+    with pytest.raises(ValueError, match="overlap"):
+        load_fold(bundle, path)
+    changed = {**original, "cal": np.array([len(bundle.labels)])}
+    np.savez_compressed(path, **changed)
+    with pytest.raises(ValueError, match="out-of-range"):
+        load_fold(bundle, path)
+    np.savez_compressed(path, **{**original, "cal": np.array([object()], dtype=object)})
+    with pytest.raises(ValueError, match="allow_pickle=False"):
+        load_fold(bundle, path)
+
+
+def write_image_jsonl(path, arrays):
+    rows = [
+        {
+            "index": int(i),
+            "image_path": f"anonymous/{i}.jpg",
+            "class_id": int(arrays["labels"][i]),
+            "sha256": f"{int(i):064x}",
+        }
+        for i in np.r_[arrays["train"], arrays["test"]]
+    ]
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    return rows
+
+
+def test_sparse_orix_images_manifest_keeps_excluded_rows_outside_roles(tmp_path):
+    arrays = orix_metadata()
+    arrays["train"] = arrays["train"][1:]
+    np.savez_compressed(tmp_path / "metadata.npz", **arrays)
+    write_image_jsonl(tmp_path / "images.jsonl", arrays)
+    bundle = DatasetBundle.load(tmp_path)
+    assert len(bundle.images) == len(arrays["labels"])
+    assert bundle.images[0] is None
+    assert bundle.images[60] == "anonymous/60.jpg"
+    assert bundle.image_sha256[60] == f"{60:064x}"
+    np.testing.assert_array_equal(bundle.test, arrays["test"])
+    with pytest.raises(ValueError, match="original seen"):
+        bundle.validate_fit(np.array([0]))
+
+
+@pytest.mark.parametrize(
+    "change,match",
+    [
+        (lambda rows: rows.pop(), "active rows"),
+        (lambda rows: rows.append(rows[0]), "duplicate"),
+        (lambda rows: rows[0].update(index=80), "out-of-range"),
+        (lambda rows: rows[0].update(index=True), "integer"),
+        (lambda rows: rows[0].update(class_id=3), "class_id"),
+        (lambda rows: rows[0].update(image_path="../image.jpg"), "relative"),
+        (lambda rows: rows[0].update(image_path="/private/image.jpg"), "relative"),
+        (lambda rows: rows[0].update(image_path="..\\image.jpg"), "relative"),
+        (lambda rows: rows[0].update(sha256="not-a-hash"), "hex digest"),
+    ],
+)
+def test_orix_images_manifest_rejects_invalid_records(tmp_path, change, match):
+    arrays = orix_metadata()
+    np.savez_compressed(tmp_path / "metadata.npz", **arrays)
+    path = tmp_path / "images.jsonl"
+    rows = write_image_jsonl(path, arrays)
+    change(rows)
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    with pytest.raises(ValueError, match=match):
+        DatasetBundle.load(tmp_path)
+
+
+def native_prefix_cache(folder, bundle, array_name):
+    folder.mkdir()
+    raw = np.arange(len(bundle.test) * 5 * 3, dtype=np.float32).reshape(-1, 5, 3)
+    np.save(folder / "indices.npy", bundle.test)
+    np.save(folder / array_name, raw)
+    manifest = {
+        "role": "test",
+        "status": "complete",
+        "metadata_sha256": sha256(bundle.path),
+        "array": array_name,
+        "shape": list(raw.shape),
+        "sha256": {name: sha256(folder / name) for name in ("indices.npy", array_name)},
+    }
+    (folder / "manifest.json").write_text(json.dumps(manifest))
+    return raw, manifest
+
+
+@pytest.mark.parametrize("array_name", ["raw_h10.npy", "raw_224.npy", "prefix.npy"])
+def test_native_prefix_names_and_original_test_order(tmp_path, array_name):
+    arrays = orix_metadata()
+    np.savez_compressed(tmp_path / "metadata.npz", **arrays)
+    bundle = DatasetBundle.load(tmp_path)
+    folder = tmp_path / "cache"
+    raw, manifest = native_prefix_cache(folder, bundle, array_name)
+    cache = PrefixCache(folder, bundle, "test")
+    np.testing.assert_array_equal(cache.indices, arrays["test"])
+    np.testing.assert_array_equal(cache.take(arrays["test"][[5, 0]]), raw[[5, 0]])
+    with pytest.raises(ValueError, match="authorized role"):
+        cache.take(bundle.train[:1])
+    manifest["sha256"][array_name] = "0" * 64
+    (folder / "manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="checksum"):
+        PrefixCache(folder, bundle, "test")
+
+
+@pytest.mark.parametrize(
+    "array_name", ["../outside.npy", "/outside.npy", "x/../raw.npy", "..\\raw.npy", 3, "raw.npz"]
+)
+def test_prefix_array_path_rejects_escape_even_without_hash_checks(bundle, tmp_path, array_name):
+    folder = tmp_path / "cache"
+    _, manifest = native_prefix_cache(folder, bundle, "prefix.npy")
+    manifest["array"] = array_name
+    (folder / "manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="relative .npy"):
+        PrefixCache(folder, bundle, "test", verify_hashes=False)
+
+
+def test_prefix_array_rejects_symlink_escape(bundle, tmp_path):
+    folder = tmp_path / "cache"
+    _, manifest = native_prefix_cache(folder, bundle, "prefix.npy")
+    outside = tmp_path / "outside.npy"
+    (folder / "prefix.npy").rename(outside)
+    (folder / "prefix.npy").symlink_to(outside)
+    with pytest.raises(ValueError, match="inside its folder"):
+        PrefixCache(folder, bundle, "test", verify_hashes=False)

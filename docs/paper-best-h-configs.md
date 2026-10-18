@@ -25,8 +25,10 @@ which has not been evaluated on the benchmarks.
 [CoScaf-final-best-H.json](CoScaf-final-best-H.json) records full-precision
 S/U/H/CZSL/AUSUC, run identities, calibration, training protocol and artifact
 hashes. It is a provenance document, not a CLI configuration or checkpoint.
-Model hashes were read from the audited inference receipts; checkpoint bytes
-were not downloaded or rehashed for this configuration update.
+CUB and RetiRare-74 checkpoint bytes, saved score banks, original splits and
+backbone assets are supplied separately. Their hashes and frozen calibrations
+are listed in `configs/<dataset>/historical-replay.json`. The current validation
+scope is recorded in [release-validation.json](release-validation.json).
 
 ## Archived loss coefficients
 
@@ -54,45 +56,32 @@ It was already zero in the archived AWA2 configuration and absent in the other
 three. Its effective zero is recorded in the manifest; an unsupported option
 is not added to the runnable JSON files.
 
-## Training protocol and current code support
+## Training protocol and replay
 
-The archived JSON files map the original model parameters to the public
-interface. **Replacing a configuration alone does not reproduce the complete
-archived experiment with the current public pipeline.** In addition to the
-removed anchor losses, the public pipeline lacks the original scheduler,
-checkpoint-selection protocol and a calibration-import path.
+The archived runs used DEV seed 7011, a 100-epoch cap, patience 5 on TUNE H
+after fitting that epoch's offset on CAL, and an improvement tolerance of 1e-12.
+The current no-anchor pipeline implements those selection mechanics. Final
+training starts afresh at the configured FINAL seed and uses
+`ceil(median(best_epoch))` from the **current** development run. Historical
+horizons are records, not substitutes for the new objective's selection.
 
-The archived protocol used development seed 7011, a 100-epoch cap, and patience
-5 on TUNE H after fitting that epoch's seen-class offset on CAL. Improvement
-required more than 1e-12. The final model was initialized afresh using the
-listed final seed and `ceil(median(best_epoch))` across the registered folds.
-The fold-best epochs were AWA2 `[9, 3]`, CUB `[18, 3]`, SUN `[5, 11]`, and
-RetiRare-74 `[6, 4, 3, 4, 1]`. Official test metrics did not determine these
-training horizons or the calibration offsets.
+AWA2, CUB and RetiRare-74 use `initial_lr * 0.95 ** (epoch - 1)`; SUN retains
+constant LR. FP32, disabled AMP/TF32 and no batch-size LR scaling are retained.
+Original NPZ folds and cache row orders are read directly, with train/test and
+CAL/TUNE role checks. New runs calibrate only on their own development CAL scores.
 
-AWA2, CUB and RetiRare-74 used `initial_lr * 0.95 ** (epoch - 1)`, with
-one-based epoch indexing. SUN retained its original constant learning rates.
-The JSON learning rates are the initial values. Features and model computation
-were FP32, with AMP and TF32 disabled; no batch-size LR scaling was applied.
+Historical replay is a separate path: it loads the original source checkpoint,
+the already-adapted generator and frozen source/adapted offsets. It never runs
+an optimizer, refits gamma, or modifies weights. CZSL uses unseen-only scores;
+GZSL uses each endpoint's own stored CAL offset. This preserves the original
+inference recipe without restoring deleted anchor-loss code.
 
-The current public pipeline uses one `seed` and fixed `source.epochs` for both
-development and final training, and does not implement the archived epoch LR
-decay or per-epoch development checkpoint selection. It also checks that the
-configuration is unchanged between development and final training. Editing the
-seed or epoch count between those commands is therefore not a replay solution.
+For RetiRare-74, `source.prior_temperature=0.01` is the effective original readout
+value; the legacy recipe's `.25` field was not used on that execution path.
+The RetiRare paper TTA endpoint is H30.3343%; its matched source endpoint is
+H30.4989%. Neither is the separate search-wide no-TTA maximum (31.9573%).
 
-The manifest separately records the CAL-fitted source offset used inside TTA
-and adapted offset used for final GZSL evaluation. The public pipeline computes
-its own calibration; it does not load these manifest values. Original folds,
-training exclusions, class/sample ordering, preprocessing, backbone weights
-and FP32 feature identities must also match. Archived and public data/cache
-containers differ and require identity-preserving conversion.
-
-For RetiRare-74, `source.prior_temperature=0.01` is intentional: the archived
-ORIX `PortableData` execution path used the readout value 0.01. Its legacy
-`source_recipe.prior_temperature=0.25` field was not the effective override.
-
-No benchmark training or inference was performed for this update. End-to-end
-numerical parity with the archived implementation remains
-unverified. Earlier public configurations remain available in Git history at
-commit `024bc4b29c96b8ec350589b57c223ffb7894a3f9`.
+The historical configurations were selected retrospectively by official-test H.
+They are not validation-selected primary estimates. No new benchmark training
+has been performed for the no-anchor objective. Earlier public configurations
+remain in Git history at `024bc4b29c96b8ec350589b57c223ffb7894a3f9`.

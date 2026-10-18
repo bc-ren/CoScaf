@@ -1,0 +1,52 @@
+{
+  "status": "CODE_CHECKS_PASS_ASSET_TRANSFER_INCOMPLETE",
+  "cpu_tests_passed": 144,
+  "ruff": "PASS",
+  "original_metadata_datasets": 4,
+  "original_folds": 43,
+  "selected_checkpoint_hashes": "PASS for CUB and RetiRare-74 source/adapted",
+  "saved_score_banks": {
+    "CUB": {
+      "rows": 4731,
+      "maximum_metric_error": 0
+    },
+    "RetiRare-74": {
+      "rows": 1972,
+      "maximum_metric_error": 0
+    }
+  },
+  "native_public_head_synthetic_probe_maximum_error": 0,
+  "full_backbone_forward_replay": {
+    "CUB": {
+      "scope": "first 16 rows from incomplete test-prefix download; full cache SHA and full-test forward not yet checked",
+      "device": "cpu",
+      "dtype": "float32",
+      "source_max_abs_error": 1.7881393432617188e-07,
+      "adapted_max_abs_error": 2.682209014892578e-07,
+      "source_prediction_differences": 0,
+      "adapted_prediction_differences": 0
+    },
+    "RetiRare-74": {
+      "scope": "first 16 test rows from incomplete prefix download; not a full-test replay or complete cache verification",
+      "device": "cpu",
+      "dtype": "float32",
+      "batch_size": 4,
+      "source_max_abs_error": 6.454065442085266e-07,
+      "adapted_max_abs_error": 7.152557373046875e-07,
+      "source_prediction_differences": 0,
+      "adapted_prediction_differences": 0,
+      "strict_backbone_load": "PASS",
+      "full_cache_sha_verified": false
+    }
+  },
+  "benchmark_training_rerun": false,
+  "new_no_anchor_metrics": null,
+  "patient_identity_audit": "Unavailable: native numeric metadata does not contain patient groups",
+  "full_original_asset_inventory": {
+    "expected_files": 1221,
+    "downloaded_files_sha256_verified": 1217,
+    "pending_large_prefix_files": 4,
+    "all_assets_complete": false
+  },
+  "checked_at_utc": "2026-10-18T19:41:04.822186+00:00"
+}

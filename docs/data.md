@@ -1,126 +1,69 @@
-# Data Setup
+# Data and original splits
 
-Images, metadata, semantic vectors and pretrained weights are not included.
+`data_splits/` includes the exact ORIX `metadata.npz`, all 43 development folds,
+and the four-field image manifest for each dataset. SHA-256 checksums are in
+`data_splits/SHA256.json`. Image pixels are not distributed.
 
-## AWA2, CUB and SUN
+| Dataset | Seen / unseen classes | Train | Test seen / unseen | Folds | Semantics |
+|---|---:|---:|---:|---:|---:|
+| AWA2 | 40 / 10 | 23,467 | 5,882 / 7,913 | 10 | 85D |
+| CUB | 150 / 50 | 7,055 | 1,764 / 2,967 | 8 | 1024D |
+| SUN | 645 / 72 | 10,290 | 2,580 / 1,440 | 20 | 102D |
+| RetiRare-74 | 59 / 15 | 3,428 | 862 / 1,110 | 5 | 512D |
 
-| Dataset | Config | Semantics | Image size |
-|---|---|---|---|
-| AWA2 | `configs/AWA2/CoScaf-no-anchor.json` | 85D, `att_splits.mat` | 384 × 384 |
-| CUB | `configs/CUB/CoScaf-no-anchor.json` | 1024D, `sent_splits.mat` | 384 × 384 |
-| SUN | `configs/SUN/CoScaf-no-anchor.json` | 102D, `att_splits.mat` | 384 × 384 |
+Metadata stores zero-based labels, class semantics, original train/test indices
+and seen/unseen class IDs. Fold NPZ files store `fit`, `cal`, `tune`,
+`pseudo_seen` and `pseudo_unseen`. Original row numbers and test ordering are
+preserved, including RetiRare-74's interleaved test order. Excluded images remain
+in the index space and do not enter training or evaluation. Do not compact the
+RetiRare-74 metadata from 5,607 rows to its 5,400 selected samples.
 
-Use the official proposed splits. The importer reads labels from `res101.mat`,
-not its visual features. Supply `images.json` as a list of image paths relative
-to the image root, in exactly the same order as the labels:
+Each `images.jsonl` row contains only `index`, `image_path`, `class_id` and
+`sha256`. RetiRare-74 uses anonymous `RRV2_######` filenames. Original case/source
+filenames and private patient mappings are not included. These splits establish
+image/content separation; no patient-disjoint claim is made.
 
-```json
-["class_a/image_001.jpg", "class_a/image_002.jpg", "class_b/image_001.jpg"]
-```
+## Cached features
 
-The README shows AWA2 preparation. For CUB, use:
+The separate asset package contains all train/test FP32 prefix features for CUB
+and RetiRare-74, original initializer means, indices and role-aware manifests.
+Prefixes still require the last two frozen backbone blocks during inference.
 
-```bash
-coscaf prepare-natural --dataset CUB \
-  --labels /data/CUB/res101.mat --splits /data/CUB/att_splits.mat \
-  --semantics /data/CUB/sent_splits.mat --images /data/CUB/images.json \
-  --output data/cub
-```
+| Dataset | Train rows | Test rows | Prefix shape per image | Prompt blocks |
+|---|---:|---:|---|---|
+| CUB | 7,055 | 4,731 | 577 x 768, block 10 | 11–12 |
+| RetiRare-74 | 3,428 | 1,972 | 197 x 1024, block 22 | 23–24 |
 
-SUN uses the same command without `--semantics` and with `--dataset SUN`.
-MATLAB indices are converted from one-based to zero-based once. Semantic class
-order and all official split arrays are checked. CUB has no 312D fallback.
-An existing training exclusion list can be supplied with `--exclude-train`
-(JSON or `.npy`, zero-based original image rows); it cannot remove test images.
-Use the original exclusion list when reproducing a run that used one.
+The manifest's `array` field identifies the original NPY filename. The loader
+checks exact row order, metadata identity, dtype, shape and checksums. Training
+can read only the train cache; development folds contain no official test rows.
+Initializer whitening and ridge fitting use only each current fit partition.
 
-Preparation creates fixed random-class and semantic-PC1 validation folds using
-only seen training images. The provided configs select one fold from each
-family. `fit` trains the model, `cal` fits the calibration offset and probability
-temperature, and `tune` evaluates validation performance. Official test images
-are excluded from these roles.
+## RetiRare-74 commands
 
-## RetiRare-74
-
-The configuration and metadata use the existing identifier `RetiRareV2`:
-`configs/RetiRare-74/CoScaf-no-anchor.json`. Use the fixed 59-seen/15-unseen
-split, 3,428 training images, 1,972 test images and original five validation folds.
-
-Obtain [RetiZero](https://github.com/LooKing9218/RetiZero) and its complete official
-checkpoint separately. Install its dependencies as directed by that repository,
-using a torchvision build compatible with your PyTorch and CUDA versions.
+Use the README's training commands with the retinal configuration and
+`--data data_splits/RetiRare74`, then append these arguments instead of
+`--vit-snapshot`:
 
 ```bash
-git clone https://github.com/LooKing9218/RetiZero.git third_party/RetiZero
-git -C third_party/RetiZero checkout d72aadc692fbe33b182c79711bccb397edffb419
-pip install -e '.[retina]'
-
-coscaf prepare-retinal --metadata /data/retinal_metadata.npz \
-  --images /data/retinal_images.json --folds /data/retinal_folds \
-  --output data/retirarev2
+--retizero-source ../CoScaf-assets/code/retinal/third_party/RetiZero_d72aadc \
+--retizero-checkpoint ../CoScaf-assets/models/backbones/retizero/RetiZero.pth \
+--bert-path ../CoScaf-assets/models/backbones/clinicalbert
 ```
 
-Follow the README commands with `configs/RetiRare-74/CoScaf-no-anchor.json`
-and the retinal paths.
-Append the following arguments to every `cache`, `develop`, `train` and
-`evaluate` command:
+The supplied backbone includes the official pretrained LoRA weights, which
+remain frozen. Its text encoder produced the fixed 512D disease-name semantics;
+standalone ClinicalBERT vectors are not interchangeable.
 
-```bash
---retizero-source third_party/RetiZero \
---retizero-checkpoint /data/RetiZero/checkpoint.pth \
---bert-path /data/RetiZero/text_model
-```
+## AWA2 and SUN
 
-Use the fixed 512D disease-name vectors from the complete RetiZero text encoder
-and learned projection head. Standalone ClinicalBERT vectors are not equivalent.
-If regenerating vectors, preserve class order and use the template
-`a fundus image of {standardized_candidate_name}.`, official pooling, batch size
-one, a 77-token limit and L2 normalization. Keep name and description vectors
-separate. The pretrained visual LoRA stays frozen.
+Obtain the original images separately, matching the supplied image manifest.
+Use the existing `coscaf cache` command and the original `data_splits/<dataset>`
+directory. Natural images use the pinned Google ViT at 384 x 384; RetiZero uses
+224 x 224. Supply an image root under which each relative `image_path` resolves.
+Do not run `prepare-natural` to replace the included registered splits. That
+command remains available for new datasets/protocols.
 
-## Prepared Data Format
-
-```text
-data/<dataset>/
-  metadata.npz
-  images.json
-  provenance.json
-  folds/fold_0.json
-  folds/...
-```
-
-`metadata.npz` uses the following arrays:
-
-| Key | Shape | Contents |
-|---|---|---|
-| `labels` | `(N,)` | Zero-based integer class IDs |
-| `semantics` | `(C, A)` | Fixed class vectors, indexed by class ID |
-| `train` | `(N_train,)` | Original seen training image indices |
-| `test_seen` | `(N_seen,)` | Official seen test indices |
-| `test_unseen` | `(N_unseen,)` | Official unseen test indices |
-| `class_names` | `(C,)` | Optional unique Unicode names |
-| `groups` | `(N,)` | Optional anonymous patient/leakage-group IDs |
-
-Each fold JSON contains global image indices `fit`, `cal`, `tune`, optional
-`confirm`, and class indices `pseudo_seen` and `pseudo_unseen`. These class lists
-partition the original seen classes. If group IDs are present, groups must be
-disjoint across image roles. Missing group IDs do not establish patient-level
-independence. Retinal folds must be supplied, not generated by the natural-image
-fold splitter.
-
-## Feature Caches
-
-Each cache contains `raw.npy`, `indices.npy` and `manifest.json`. Train rows match
-`train`; test rows are `test_seen` followed by `test_unseen`, without reordering.
-Caches include backbone and data checksums.
-
-| Backbone | Prefix tokens (FP32) | Prompt blocks |
-|---|---|---|
-| Google ViT-Base/16 | `(N, 577, 768)`, after block 10 | 11–12 |
-| RetiZero | `(N, 197, 1024)`, after block 22 | 23–24 |
-
-The Google model revision and weight checksum are pinned in `backbones.py`.
-Use `--vit-snapshot /path/to/snapshot` for a local copy. Image processing uses
-the official processor. Library versions and JPEG decoding can affect replay.
-Natural-image prefixes occupy about 1.7 MiB per image. Evaluation also stores
-class-dependent local evidence, which can require hundreds of GB for SUN.
+Test cache extraction requires a completed run via `--run`, after development
+and source training have been frozen. Library/JPEG versions can affect freshly
+extracted features; use published cache hashes to identify the archived features.

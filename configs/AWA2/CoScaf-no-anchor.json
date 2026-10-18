@@ -21,7 +21,8 @@
     "weight_decay": 0.0001,
     "modes": 3,
     "micro_batch_size": 16,
-    "routing": "original"
+    "routing": "original",
+    "epoch_decay": "exponential_095"
   },
   "adaptation": {
     "engine": "geometry_ot",
@@ -58,5 +59,11 @@
     0,
     5
   ],
-  "adaptation_batch": 64
+  "adaptation_batch": 64,
+  "development": {
+    "seed": 7011,
+    "max_epochs": 100,
+    "patience": 5,
+    "improvement_tolerance": 1e-12
+  }
 }
