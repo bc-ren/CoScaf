@@ -23,6 +23,13 @@ Data and pretrained weights are obtained separately. See [data setup](docs/data.
 for the input format and RetiZero installation. Keep the supplied configurations
 in `configs/`; CUB requires 1024D semantics from `sent_splits.mat`.
 
+The supplied configurations now record the paper's **CoScaf-final-best-H**
+models with TTA. See [configuration records](docs/paper-best-h-configs.md)
+for model identities, same-run metrics, loss coefficients and the archived
+training protocol. The public pipeline does not yet implement that protocol's
+per-epoch development selection or dataset-specific LR schedule; the commands
+below run the public pipeline, not an exact replay of the archived best-H runs.
+
 ## Training
 
 Run from the repository root. The commands below use AWA2. For other datasets,

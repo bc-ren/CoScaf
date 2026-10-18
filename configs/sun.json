@@ -1,6 +1,6 @@
 {
   "dataset": "SUN",
-  "seed": 3407,
+  "seed": 7033,
   "semantics_dim": 102,
   "visual_dim": 768,
   "backbone": "vit_base",
@@ -10,7 +10,7 @@
     "ridge": 0.001,
     "mode_scale": 0.0935055735082124,
     "local_weight": 0.25,
-    "epochs": 6,
+    "epochs": 8,
     "batch_size": 32,
     "score_batch_size": 1,
     "prompt_lr": 0.0006,
@@ -19,7 +19,7 @@
     "moment_lr": 0.0002,
     "loss_temperature": 0.03070652820647652,
     "weight_decay": 7.229746749861693e-05,
-    "anchor_weight": 0.1,
+    "anchor_weight": 0.7,
     "modes": 8,
     "micro_batch_size": 2,
     "routing": "latent",
@@ -58,7 +58,8 @@
     "mass_balance_strength": 0.15,
     "mass_balance_iterations": 3,
     "centroid_blend": 0.25,
-    "centroid_temperature": 0.05
+    "centroid_temperature": 0.05,
+    "topology_weight": 0.0
   },
   "adaptation_setting": {
     "lr_factor": 1.0,

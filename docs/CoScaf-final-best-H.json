@@ -1,0 +1,426 @@
+{
+  "name": "CoScaf-final-best-H",
+  "format_version": 1,
+  "date": "2026-10-18",
+  "compared_github_commit": "024bc4b29c96b8ec350589b57c223ffb7894a3f9",
+  "scope": "Four paper CoScaf-with-TTA highest-H single-seed records. Accompanying metrics come from the same H run, not separate CZSL maxima.",
+  "selection_basis": "Descriptive official-test single-seed maxima; not validation-selected primary results.",
+  "exact_replay_with_current_public_pipeline_verified": false,
+  "compatibility_document": "paper-best-h-configs.md",
+  "models": {
+    "AWA2": {
+      "record_id": "A/AWA2/tta/b128_p20/7033",
+      "dataset": "AWA2",
+      "display_name": "AWA2",
+      "source_run": "coscaf_fp32_hpo_v1_r4_20261014",
+      "candidate": "b128_p20",
+      "seed": 7033,
+      "policy": "tta",
+      "validation_rank": 40,
+      "selected_by_validation": false,
+      "metrics_percent_same_run": {
+        "S": 93.57127526765389,
+        "U": 91.88571392441453,
+        "H": 92.72083482258971,
+        "CZSL": 94.27310942555526,
+        "AUSUC": 91.06722346393242
+      },
+      "development": {
+        "seed": 7011,
+        "folds": [
+          0,
+          5
+        ],
+        "max_epochs": 100,
+        "patience": 5,
+        "early_stop_metric": "source_TUNE_H_with_own_epoch_CAL",
+        "improvement_tolerance": 1e-12
+      },
+      "final_training": {
+        "seed": 7033,
+        "fold": -1,
+        "epochs": 6,
+        "epoch_rule": "ceil(median(best_epoch across registered original-seen folds))",
+        "selected_development_epochs": [
+          9,
+          3
+        ],
+        "official_test_early_stopping": false
+      },
+      "learning_rate_schedule": {
+        "policy": "exponential_095",
+        "epoch_indexing": "1-based",
+        "multiplier_formula": "0.95 ** (epoch - 1)",
+        "batch_size_lr_scaling": false
+      },
+      "calibration": {
+        "source": {
+          "gamma": 0.16340522468090057,
+          "max_H": 0.7927954116256904,
+          "AUSUC": 0.6926455083630237,
+          "probability_temperature": 0.03109488957036292,
+          "fit_role": "joint_OOF_cal_equal_fold_equal_class"
+        },
+        "adaptation_input_gamma": 0.16340522468090057,
+        "adapted_evaluation": {
+          "gamma": 0.0630018562078476,
+          "max_H": 0.9107562825153765,
+          "AUSUC": 0.8644598317082923,
+          "probability_temperature": 0.02216936647655774,
+          "fit_role": "joint_OOF_cal_equal_fold_equal_class"
+        },
+        "fit_role": "CAL only; separate source and adapted offsets; no test fitting",
+        "usage": "Use source gamma inside adaptation; use adapted_evaluation.gamma for the adapted GZSL metrics. CZSL uses unseen-only raw scores."
+      },
+      "precision": {
+        "feature_dtype": "float32",
+        "model_dtype": "float32",
+        "tf32": false,
+        "amp": false
+      },
+      "config": "configs/awa2.json",
+      "config_sha256": "586b41a0f8ce4448ccf3648f450f9632c04727f13002838cd569d7c6118f37c9",
+      "archived_artifact_hashes": {
+        "source_model_sha256": "89d7f67e7b3fb0f9aff123303a7be720f0b9c1206d12b39cb3a559393b345aac",
+        "adaptation_sha256": "77fe9af9495dc022fff6ce249b456eeff9720ca9676e2b99e5177a5ec396c3a9",
+        "score_sha256": {
+          "source_scores.npy": "33f2ecc80a62b999a7ee2e5a12fe6c4acc68a770316a873a7cdba7862edf4a65",
+          "adapted_scores.npy": "5c5c1ee48d89b936a1b453230a9d8ab2d68342333711e9e99f36cdcab0161434"
+        },
+        "final_receipt_sha256": "1784e6a711d89a5beb7f29a98ecdf41488440f8ceaa49d9af710bb735d414235",
+        "official_receipt_sha256": "d1aa6dec0a16b4453ea39b14f0559fdbf558c3bca29092ace9d16167b7657794",
+        "registered_config_sha256": "d8c24cf332806a864cad6e6e167d19a7cbaeddc9d7195528e7487038a5664413",
+        "evidence_limit": "Official receipt bytes read remotely and SHA matched to final native audit; model and adaptation digests read from that receipt; actual weight bytes not downloaded or rehashed"
+      },
+      "field_resolution": {
+        "seed": "Final seed; development seed is recorded separately.",
+        "source.epochs": "Actual final training horizon, not development cap.",
+        "adaptation.topology_weight": "Active at 0.25 for AWA2; explicitly 0.0 for the other datasets, preserving their original implicit default."
+      },
+      "legacy_unused_loss": {
+        "name": "order_weight",
+        "effective_coefficient": 0.0,
+        "status": "No order loss is computed by the active archived or public adaptation path. The archived AWA2 value is 0; other configurations omit it. Not added as a nonfunctional public config option."
+      },
+      "compatibility_limits": [
+        "Public training.py has no epoch LR scheduler; the original fit used initial_lr * 0.95 ** (epoch - 1). A JSON key alone is silently ineffective.",
+        "Current public develop/train uses one seed and fixed source.epochs for both DEV and FINAL; the original protocol used DEV seed 7011, per-fold early stopping and a separately seeded fresh FINAL fit.",
+        "The public pipeline derives calibration from its own development output and checks exact config identity; it does not consume the frozen source/TTA calibration exported in this record.",
+        "Data membership, duplicate exclusions, cached FP32 features, backbone weights and preprocessing must match the archived run; JSON values alone do not establish this parity.",
+        "Public-code parameter mapping is provided for comparison, not a claim of bitwise parity with the archived implementation."
+      ]
+    },
+    "CUB": {
+      "record_id": "A/CUB/tta/b128_p20/7033",
+      "dataset": "CUB",
+      "display_name": "CUB",
+      "source_run": "coscaf_fp32_hpo_v1_r4_20261014",
+      "candidate": "b128_p20",
+      "seed": 7033,
+      "policy": "tta",
+      "validation_rank": 50,
+      "selected_by_validation": false,
+      "metrics_percent_same_run": {
+        "S": 84.46838319632438,
+        "U": 89.17094798573576,
+        "H": 86.7559872888618,
+        "CZSL": 93.62158283460491,
+        "AUSUC": 82.7730575074071
+      },
+      "development": {
+        "seed": 7011,
+        "folds": [
+          0,
+          4
+        ],
+        "max_epochs": 100,
+        "patience": 5,
+        "early_stop_metric": "source_TUNE_H_with_own_epoch_CAL",
+        "improvement_tolerance": 1e-12
+      },
+      "final_training": {
+        "seed": 7033,
+        "fold": -1,
+        "epochs": 11,
+        "epoch_rule": "ceil(median(best_epoch across registered original-seen folds))",
+        "selected_development_epochs": [
+          18,
+          3
+        ],
+        "official_test_early_stopping": false
+      },
+      "learning_rate_schedule": {
+        "policy": "exponential_095",
+        "epoch_indexing": "1-based",
+        "multiplier_formula": "0.95 ** (epoch - 1)",
+        "batch_size_lr_scaling": false
+      },
+      "calibration": {
+        "source": {
+          "gamma": 0.06844726949930191,
+          "max_H": 0.7517914022303933,
+          "AUSUC": 0.6419613960806344,
+          "probability_temperature": 0.01789266647242056,
+          "fit_role": "joint_OOF_cal_equal_fold_equal_class"
+        },
+        "adaptation_input_gamma": 0.06844726949930191,
+        "adapted_evaluation": {
+          "gamma": 0.016877785325050354,
+          "max_H": 0.8062019145200622,
+          "AUSUC": 0.7095422128153208,
+          "probability_temperature": 0.014970844172009227,
+          "fit_role": "joint_OOF_cal_equal_fold_equal_class"
+        },
+        "fit_role": "CAL only; separate source and adapted offsets; no test fitting",
+        "usage": "Use source gamma inside adaptation; use adapted_evaluation.gamma for the adapted GZSL metrics. CZSL uses unseen-only raw scores."
+      },
+      "precision": {
+        "feature_dtype": "float32",
+        "model_dtype": "float32",
+        "tf32": false,
+        "amp": false
+      },
+      "config": "configs/cub.json",
+      "config_sha256": "6c67b4ab0bc142c55715c3ade5d59d078e5ec7d2f946d03fa4cff838a870518b",
+      "archived_artifact_hashes": {
+        "source_model_sha256": "1098dd5aeb4c02eeec04df2e3db2e94ea614ff19a18de12c67aa03d9ddfc86c5",
+        "adaptation_sha256": "965f3625b606dd490462f3e363b757ee369bc1977af9b09bcee1fb4565c1b6f8",
+        "score_sha256": {
+          "source_scores.npy": "152cc40c39c38e785eae9c07b258fb95848229ba93a08cad217734445a440ecd",
+          "adapted_scores.npy": "6e8ad17281cdb9c7a297d3f98ad0c0a14b8da01321596d7e09a05a20fe9392ce"
+        },
+        "final_receipt_sha256": "80251c17baf2872d921961be55358065cf46aeadd7cb53cbf5da31ad149798ce",
+        "official_receipt_sha256": "d35f3aac6dd9beacd81ef46dfd7d2723ddd792ce8861f47513b011e07186de96",
+        "registered_config_sha256": "63b6ef0815975617229fb8c7c44f94a4a7b44b2e4f1e920729d9a45f60c3a60c",
+        "evidence_limit": "Official receipt bytes read remotely and SHA matched to final native audit; model and adaptation digests read from that receipt; actual weight bytes not downloaded or rehashed"
+      },
+      "field_resolution": {
+        "seed": "Final seed; development seed is recorded separately.",
+        "source.epochs": "Actual final training horizon, not development cap.",
+        "adaptation.topology_weight": "Active at 0.25 for AWA2; explicitly 0.0 for the other datasets, preserving their original implicit default."
+      },
+      "legacy_unused_loss": {
+        "name": "order_weight",
+        "effective_coefficient": 0.0,
+        "status": "No order loss is computed by the active archived or public adaptation path. The archived AWA2 value is 0; other configurations omit it. Not added as a nonfunctional public config option."
+      },
+      "compatibility_limits": [
+        "Public training.py has no epoch LR scheduler; the original fit used initial_lr * 0.95 ** (epoch - 1). A JSON key alone is silently ineffective.",
+        "Current public develop/train uses one seed and fixed source.epochs for both DEV and FINAL; the original protocol used DEV seed 7011, per-fold early stopping and a separately seeded fresh FINAL fit.",
+        "The public pipeline derives calibration from its own development output and checks exact config identity; it does not consume the frozen source/TTA calibration exported in this record.",
+        "Data membership, duplicate exclusions, cached FP32 features, backbone weights and preprocessing must match the archived run; JSON values alone do not establish this parity.",
+        "Public-code parameter mapping is provided for comparison, not a claim of bitwise parity with the archived implementation."
+      ]
+    },
+    "SUN": {
+      "record_id": "B/SUN/tta/b032_p08/7033",
+      "dataset": "SUN",
+      "display_name": "SUN",
+      "source_run": "coscaf_sun_original_lr_hpo_v3_20261015",
+      "candidate": "b032_p08",
+      "seed": 7033,
+      "policy": "tta",
+      "validation_rank": 21,
+      "selected_by_validation": false,
+      "metrics_percent_same_run": {
+        "S": 58.48837209302326,
+        "U": 73.75,
+        "H": 65.23851395911188,
+        "CZSL": 85.83333333333334,
+        "AUSUC": 52.39577950043049
+      },
+      "development": {
+        "seed": 7011,
+        "folds": [
+          0,
+          10
+        ],
+        "max_epochs": 100,
+        "patience": 5,
+        "early_stop_metric": "source_TUNE_H_with_own_epoch_CAL",
+        "improvement_tolerance": 1e-12
+      },
+      "final_training": {
+        "seed": 7033,
+        "fold": -1,
+        "epochs": 8,
+        "epoch_rule": "ceil(median(best_epoch across registered original-seen folds))",
+        "selected_development_epochs": [
+          5,
+          11
+        ],
+        "official_test_early_stopping": false
+      },
+      "learning_rate_schedule": {
+        "policy": "constant_original",
+        "epoch_indexing": "1-based",
+        "multiplier_formula": "1.0",
+        "batch_size_lr_scaling": false
+      },
+      "calibration": {
+        "source": {
+          "gamma": 0.06699474155902863,
+          "max_H": 0.559784421917104,
+          "AUSUC": 0.37019410366931793,
+          "probability_temperature": 0.023618299510896938,
+          "fit_role": "joint_OOF_cal_equal_fold_equal_class"
+        },
+        "adaptation_input_gamma": 0.06699474155902863,
+        "adapted_evaluation": {
+          "gamma": 0.00775173306465149,
+          "max_H": 0.6138288170922345,
+          "AUSUC": 0.43361806476569253,
+          "probability_temperature": 0.0342074697621583,
+          "fit_role": "joint_OOF_cal_equal_fold_equal_class"
+        },
+        "fit_role": "CAL only; separate source and adapted offsets; no test fitting",
+        "usage": "Use source gamma inside adaptation; use adapted_evaluation.gamma for the adapted GZSL metrics. CZSL uses unseen-only raw scores."
+      },
+      "precision": {
+        "feature_dtype": "float32",
+        "model_dtype": "float32",
+        "tf32": false,
+        "amp": false
+      },
+      "config": "configs/sun.json",
+      "config_sha256": "5a43e02dcdb4e3bff7bb6934fb43178c735dd7bae84d67c3e0a05adcf82d05c8",
+      "archived_artifact_hashes": {
+        "source_model_sha256": "6243f1021df82d8b28d17956567d69e81382deb9fe751081b0d5f0f93368a9ba",
+        "adaptation_sha256": "790d6d0fbe9fb7444aaf1ea7f54ba75052c4f23137cbdc69d09e1ee943ceda28",
+        "score_sha256": {
+          "source_scores.npy": "8d466e72fdda937fbcc9be6ec3f9112de10153333bf3702c9bd59f295bc8d958",
+          "adapted_scores.npy": "f376160b2e56f0236e77a96266bd4c19d412eef7ebd694cdf120274515ce2eb7"
+        },
+        "final_receipt_sha256": "2c30b75b65dbf1e108cfaf491e5e6af977b1c3120e251ba1d8aa004714879133",
+        "official_receipt_sha256": "b2beef963aa32d5ee7aa42ec66528b50055373b4612a19d4a1f4294f87aacb2c",
+        "registered_config_sha256": "55f991a0bce9b44720533db3cb891dbad1f79bf9fe109a11ef44b2a3a6f3c4d7",
+        "evidence_limit": "complete final and official receipt objects, exact serialized SHA matched; full weight bytes not local"
+      },
+      "field_resolution": {
+        "seed": "Final seed; development seed is recorded separately.",
+        "source.epochs": "Actual final training horizon, not development cap.",
+        "adaptation.topology_weight": "Active at 0.25 for AWA2; explicitly 0.0 for the other datasets, preserving their original implicit default."
+      },
+      "legacy_unused_loss": {
+        "name": "order_weight",
+        "effective_coefficient": 0.0,
+        "status": "No order loss is computed by the active archived or public adaptation path. The archived AWA2 value is 0; other configurations omit it. Not added as a nonfunctional public config option."
+      },
+      "compatibility_limits": [
+        "Current public develop/train uses one seed and fixed source.epochs for both DEV and FINAL; the original protocol used DEV seed 7011, per-fold early stopping and a separately seeded fresh FINAL fit.",
+        "The public pipeline derives calibration from its own development output and checks exact config identity; it does not consume the frozen source/TTA calibration exported in this record.",
+        "Data membership, duplicate exclusions, cached FP32 features, backbone weights and preprocessing must match the archived run; JSON values alone do not establish this parity.",
+        "Public-code parameter mapping is provided for comparison, not a claim of bitwise parity with the archived implementation."
+      ]
+    },
+    "RetiRareV2": {
+      "record_id": "A/RetiRare74/tta/b032_p22/7031",
+      "dataset": "RetiRareV2",
+      "display_name": "RetiRare-74",
+      "source_run": "coscaf_fp32_hpo_v1_r4_20261014",
+      "candidate": "b032_p22",
+      "seed": 7031,
+      "policy": "tta",
+      "validation_rank": 23,
+      "selected_by_validation": false,
+      "metrics_percent_same_run": {
+        "S": 30.86876769192552,
+        "U": 29.818081582189443,
+        "H": 30.334329245597907,
+        "CZSL": 34.05098885650876,
+        "AUSUC": 14.529740267484497
+      },
+      "development": {
+        "seed": 7011,
+        "folds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "max_epochs": 100,
+        "patience": 5,
+        "early_stop_metric": "source_TUNE_H_with_own_epoch_CAL",
+        "improvement_tolerance": 1e-12
+      },
+      "final_training": {
+        "seed": 7031,
+        "fold": -1,
+        "epochs": 4,
+        "epoch_rule": "ceil(median(best_epoch across registered original-seen folds))",
+        "selected_development_epochs": [
+          6,
+          4,
+          3,
+          4,
+          1
+        ],
+        "official_test_early_stopping": false
+      },
+      "learning_rate_schedule": {
+        "policy": "exponential_095",
+        "epoch_indexing": "1-based",
+        "multiplier_formula": "0.95 ** (epoch - 1)",
+        "batch_size_lr_scaling": false
+      },
+      "calibration": {
+        "source": {
+          "gamma": 0.08739741146564485,
+          "max_H": 0.2026302477604059,
+          "AUSUC": 0.06646484939627817,
+          "probability_temperature": 0.04142831413904389,
+          "fit_role": "joint_OOF_cal_equal_fold_equal_class"
+        },
+        "adaptation_input_gamma": 0.08739741146564485,
+        "adapted_evaluation": {
+          "gamma": 0.051836349070072174,
+          "max_H": 0.185936698299749,
+          "AUSUC": 0.06140945365354615,
+          "probability_temperature": 0.049514845927297525,
+          "fit_role": "joint_OOF_cal_equal_fold_equal_class"
+        },
+        "fit_role": "CAL only; separate source and adapted offsets; no test fitting",
+        "usage": "Use source gamma inside adaptation; use adapted_evaluation.gamma for the adapted GZSL metrics. CZSL uses unseen-only raw scores."
+      },
+      "precision": {
+        "feature_dtype": "float32",
+        "model_dtype": "float32",
+        "tf32": false,
+        "amp": false
+      },
+      "config": "configs/retirarev2.json",
+      "config_sha256": "a284fce0bc67c8ddb6ff488154d6e1ed585aea28e34e80b4ceaf00994e8836d9",
+      "archived_artifact_hashes": {
+        "source_model_sha256": "f916497ef1c2ba882ee40980d5cf5517acb541783e1795976aedcd3b1a3096b2",
+        "adaptation_sha256": "30ea5f4aa160655233c97b2a72ebc8d15bcfa4aface2a9bacef7b00eb1d1ea7c",
+        "score_sha256": {
+          "source_scores.npy": "14a037376ff1465142d007ac869393aac6c9be134a62f9013f8c4204f39ecb60",
+          "adapted_scores.npy": "73bb137efa76c1b174cc5eed2bb23b19efaf6f68e9f1fb191a2b3ea36822e4d3"
+        },
+        "final_receipt_sha256": "47076c780aff838e5311beaeb09408bc544baaaa9fb4d9ca98b3ea23298beb7d",
+        "official_receipt_sha256": "5d58220bddc059c02306f70c89ce4e262c152dd0998f9a9991f1f0cbaf6f9bb4",
+        "registered_config_sha256": "9631a9e1b7f03e1dd6767801fdce4910c2b2002abe3d35aea92cc37c466b528b",
+        "evidence_limit": "Official receipt bytes read remotely and SHA matched to final native audit; model and adaptation digests read from that receipt; actual weight bytes not downloaded or rehashed"
+      },
+      "field_resolution": {
+        "seed": "Final seed; development seed is recorded separately.",
+        "source.epochs": "Actual final training horizon, not development cap.",
+        "adaptation.topology_weight": "Active at 0.25 for AWA2; explicitly 0.0 for the other datasets, preserving their original implicit default.",
+        "source.prior_temperature": "0.01 is the effective ORIX readout value; the unused source_recipe value 0.25 does not override it on the PortableData execution path."
+      },
+      "legacy_unused_loss": {
+        "name": "order_weight",
+        "effective_coefficient": 0.0,
+        "status": "No order loss is computed by the active archived or public adaptation path. The archived AWA2 value is 0; other configurations omit it. Not added as a nonfunctional public config option."
+      },
+      "compatibility_limits": [
+        "Public training.py has no epoch LR scheduler; the original fit used initial_lr * 0.95 ** (epoch - 1). A JSON key alone is silently ineffective.",
+        "Current public develop/train uses one seed and fixed source.epochs for both DEV and FINAL; the original protocol used DEV seed 7011, per-fold early stopping and a separately seeded fresh FINAL fit.",
+        "The public pipeline derives calibration from its own development output and checks exact config identity; it does not consume the frozen source/TTA calibration exported in this record.",
+        "Data membership, duplicate exclusions, cached FP32 features, backbone weights and preprocessing must match the archived run; JSON values alone do not establish this parity.",
+        "Public-code parameter mapping is provided for comparison, not a claim of bitwise parity with the archived implementation."
+      ]
+    }
+  }
+}
