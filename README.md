@@ -14,7 +14,7 @@ pip install -e '.[retina]'
 
 ## Data
 
-Google Drive: **[link to be added]**
+Google Drive: [CoScaf assets](https://drive.google.com/drive/folders/1w9X5kvYRbGLiHcwrWmMgToaSLwpjmFc8)
 
 Extract `CoScaf-assets/` alongside this repository. Use the included
 `data_splits/` and the CUB/RetiRare-74 caches. AWA2 and SUN require their original
