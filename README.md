@@ -22,24 +22,10 @@ images to generate caches.
 
 ## Run
 
-### Saved checkpoint inference
-
-Set `MODEL=CUB` or `MODEL=RetiRare-74`.
-
-```bash
-MODEL=CUB
-python -m coscaf.historical --mode verify \
-  --manifest manifests/$MODEL.json --assets ../CoScaf-assets
-python -m coscaf.historical --mode replay \
-  --manifest manifests/$MODEL.json --assets ../CoScaf-assets \
-  --output outputs/$MODEL-replay --device cuda:0
-```
-
 ### Training and evaluation
 
-The current training configuration omits anchor losses; saved checkpoints use
-the inference command above. Run the following in Bash, choosing `AWA2`, `CUB`,
-`SUN`, or `RetiRare74`:
+The current training configuration omits anchor losses. Run the following in
+Bash, choosing `AWA2`, `CUB`, `SUN`, or `RetiRare74`:
 
 ```bash
 DATASET=CUB
