@@ -24,7 +24,7 @@ images to generate caches.
 
 ### Training and evaluation
 
-The current training configuration omits anchor losses. Run the following in
+Run the following in
 Bash, choosing `AWA2`, `CUB`, `SUN`, or `RetiRare74`:
 
 ```bash
